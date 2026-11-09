@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://bass-trainer.habatakijuku.com/sitemap.xml
