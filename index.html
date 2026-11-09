@@ -206,6 +206,31 @@ body[data-view="play"] .tabs, body[data-view="play"] .topbar, body[data-view="pl
 .node .st.none { color: #cddbd7; }
 .node .sub { display: block; font-size: .76rem; color: var(--muted); line-height: 1.4; }
 .node.later .nm { color: #7f9993; }
+/* 有料版・アカウント */
+.plan-status { font-size: .92rem; }
+.plan-btns { justify-content: flex-start; }
+.plan-legal { font-size: .78rem; color: var(--muted); }
+.acct-error { color: var(--ng); font-size: .9rem; }
+.acct-code { font-family: ui-monospace, Consolas, monospace; font-size: 1.2rem; letter-spacing: .05em; padding: 10px; background: var(--accent-soft); border-radius: 12px; text-align: center; }
+#acctDlg p { margin: 0 0 12px; font-size: .94rem; }
+#acctDlg input { width: 100%; margin-bottom: 12px; font: inherit; padding: 8px 12px; border-radius: 12px; border: 2px solid var(--line); }
+.pay-hero { margin: -22px -22px 18px; padding: 26px 22px 22px; color: #fff; border-radius: 26px 26px 0 0; background: radial-gradient(120% 140% at 100% 0%, #3fd6b0 0%, #138a72 45%, #0b4a3e 100%); }
+.pay-hero h2 { margin: 0 0 4px; font-size: 1.45rem; }
+.pay-hero p { margin: 0; opacity: .9; font-size: .92rem; }
+.pay-hero .crown { font-size: 2rem; }
+.benefits { list-style: none; padding: 0; margin: 0 0 18px; display: grid; gap: 12px; }
+.benefits li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; }
+.benefits li::before { content: "✓"; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #dcfce7; color: var(--ok); font-weight: 700; }
+.benefits b { display: block; }
+.benefits small { color: var(--muted); font-size: .84rem; }
+.price-card { border-radius: 18px; padding: 16px 18px; box-shadow: 0 0 0 2px var(--accent) inset; background: var(--accent-soft); display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.price-card b { font-size: 1.9rem; white-space: nowrap; }
+.price-card b span { font-size: 1rem; margin-left: 2px; }
+.price-card small { color: var(--muted); }
+.pay-login { text-align: center; font-size: .88rem; margin: 10px 0 0; }
+.trust { display: grid; gap: 4px; margin-top: 14px; font-size: .8rem; color: var(--muted); text-align: center; }
+.node.locked .dot { font-size: 1.2rem; }
+.billing-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 50; max-width: calc(100% - 32px); background: #0f2a25; color: #fff; padding: 12px 18px; border-radius: 14px; font-size: .92rem; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); }
 @keyframes pulse { 0%, 100% { box-shadow: 0 4px 0 var(--gold-dark), 0 0 0 6px rgba(255, 176, 32, .25); } 50% { box-shadow: 0 4px 0 var(--gold-dark), 0 0 0 12px rgba(255, 176, 32, .08); } }
 .extras { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .tile {
@@ -534,6 +559,12 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
   <div class="dlg-in">
     <div class="dlg-head"><h2 id="settingsTitle">設定</h2><button type="button" class="icon" data-close aria-label="閉じる">✕</button></div>
     <section class="settings" aria-label="設定">
+      <div class="field wide" id="planField" hidden>
+        <h3 style="margin:0">アカウント・有料版</h3>
+        <div id="planStatus" class="plan-status"></div>
+        <div id="planBtns" class="controls plan-btns"></div>
+        <div class="plan-legal">申し込むと<a href="https://habatakijuku.com/legal/terms.html" target="_blank" rel="noopener">利用規約</a>に同意したものとみなします。<a href="https://habatakijuku.com/legal/tokushoho.html" target="_blank" rel="noopener">特定商取引法に基づく表記</a>・<a href="https://habatakijuku.com/legal/privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a></div>
+      </div>
       <h3>MIDIベース</h3>
       <div class="field wide">
         <span>接続</span>
@@ -598,6 +629,57 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
   </div>
 </dialog>
 
+<!-- 有料版の案内 -->
+<dialog id="payDlg" class="sheet-dlg" aria-labelledby="payTitle">
+  <div class="dlg-in">
+    <div class="pay-hero">
+      <div class="dlg-head" style="margin:0"><span class="crown" aria-hidden="true">👑</span><span style="flex:1"></span><button type="button" class="icon" data-close aria-label="閉じる" style="background:rgba(255,255,255,.18);color:#fff">✕</button></div>
+      <h2 id="payTitle">ベーストレーナー 有料版</h2>
+      <p id="payLead">指板を地図にして、ベースラインまで。</p>
+    </div>
+    <ul class="benefits" id="payBenefits"></ul>
+    <div class="price-card"><div><small>月額</small><br><b>480<span>円</span></b></div><div style="text-align:right"><small>いつでも解約できます<br>解約しても、期間の終わりまで使えます</small></div></div>
+    <div class="controls"><button type="button" class="gold big" id="payBuy" style="width:100%">有料版にする</button></div>
+    <p class="pay-login">申し込んだことがある方は <button type="button" class="link" id="payLogin">ログイン</button></p>
+    <div class="trust">
+      <span>🔒 お支払いは Stripe（世界中で使われている決済サービス）で行います。カード番号はこのサイトに届きません。</span>
+      <span>ログインはパスキー（指紋・顔・PIN）。パスワードもメールアドレスも要りません。</span>
+      <span><a href="https://habatakijuku.com/legal/terms.html" target="_blank" rel="noopener">利用規約</a>・<a href="https://habatakijuku.com/legal/tokushoho.html" target="_blank" rel="noopener">特定商取引法に基づく表記</a>・<a href="https://habatakijuku.com/legal/privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a></span>
+    </div>
+  </div>
+</dialog>
+
+<!-- アカウント（パスキー） -->
+<dialog id="acctDlg" class="sheet-dlg" aria-labelledby="acctTitle">
+  <div class="dlg-in">
+    <div class="dlg-head"><h2 id="acctTitle">ベーストレーナー アカウント</h2><button type="button" class="icon" id="acctClose" aria-label="閉じる">✕</button></div>
+    <p id="acctMsg"></p>
+    <div data-view="register">
+      <p>表示名（ニックネーム）を決めて、この端末にパスキーを作ります。</p>
+      <input id="acctName" maxlength="30" placeholder="ニックネーム" autocomplete="nickname">
+      <div class="controls"><button id="acctRegisterBtn" type="button">パスキーを作って続ける</button></div>
+      <p style="margin-top:14px">前に作った方は <button type="button" class="link" data-goto="login">パスキーでログイン</button></p>
+    </div>
+    <div data-view="login" hidden>
+      <p>この端末（または同じアカウントの端末）に保存したパスキーでログインします。</p>
+      <div class="controls"><button id="acctLoginBtn" type="button">パスキーでログイン</button></div>
+      <p style="margin-top:14px">パスキーをなくした方は <button type="button" class="link" data-goto="recover">復旧コードを使う</button>／初めての方は <button type="button" class="link" data-goto="register">パスキーを作る</button></p>
+    </div>
+    <div data-view="recover" hidden>
+      <p>登録したときにメモした復旧コードを入れてください。</p>
+      <input id="acctCode" placeholder="XXXXX-XXXXX-XXXXX-XXXXX" autocomplete="off">
+      <div class="controls"><button id="acctRecoverBtn" type="button">復旧コードでログイン</button></div>
+    </div>
+    <div data-view="recovery" hidden>
+      <p>パスキーをなくしたときに使う<strong>復旧コード</strong>です。この画面にしか出ないので、メモして大切に保管してください。</p>
+      <p id="acctRecovery" class="acct-code"></p>
+      <div class="controls"><button id="acctRecoveryDone" type="button">メモしました</button></div>
+    </div>
+    <p id="acctError" class="acct-error" hidden></p>
+  </div>
+</dialog>
+<div id="billingToast" class="billing-toast" role="status" hidden></div>
+
 <!-- 使い方 -->
 <dialog id="helpDlg" class="sheet-dlg" aria-labelledby="helpTitle">
   <div class="dlg-in help">
@@ -611,7 +693,7 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
       <li><b>TAB譜</b>：フレーズを「順番に弾く」か「テンポに合わせる」（Perfect ±70ms・Good ±150ms）で弾きます。</li>
     </ul>
     <h3>クリア条件</h3>
-    <p>指板・音名・五線譜は1ステージ20問。<b>1回で正解が16問以上</b>で、<b>平均時間が目安以内</b>（指板3秒・音名5秒・五線譜4秒）ならクリアです。TAB譜は、1回で弾けた音（テンポでは合った音）が<b>85%以上</b>でクリア。どのステージからでも始められます。自由練習では、間違えやすいもの・時間がかかるものを多めに出します。</p>
+    <p>指板・音名・五線譜は1ステージ20問。<b>1回で正解が16問以上</b>で、<b>平均時間が目安以内</b>（指板3秒・音名5秒・五線譜4秒）ならクリアです。TAB譜は、1回で弾けた音（テンポでは合った音）が<b>85%以上</b>でクリア。どのステージからでも始められます。各モードのステージ1〜3は無料、ステージ4から先は有料版（月480円）です。自由練習では、間違えやすいもの・時間がかかるものを多めに出します。</p>
     <h3>ベースの楽譜の見方</h3>
     <p><b>弦の番号</b>：4弦ベースでは、いちばん細い（高い音の）弦が1弦、いちばん太い弦が4弦です。何も押さえない「開放弦」の音は、4弦から順に E・A・D・G（ミ・ラ・レ・ソ）。ギターの太いほうの4本と同じ音名で、高さは1オクターブ下です。</p>
     <p><b>フレット</b>：1フレット進むごとに半音ずつ高くなります。12フレットで開放弦のちょうど1オクターブ上です。</p>
@@ -622,6 +704,7 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
   </div>
 </dialog>
 
+<script src="billing.js?v=1"></script>
 <script>
 'use strict';
 const VF = Vex.Flow;
@@ -738,36 +821,12 @@ const TAB_STAGES = [
     ph('F → G', [[4, 1], [3, 3], [4, 1], [3, 3], [4, 3], [3, 5], [4, 3], [3, 5]]),
     ph('C → D（下の5度）', [[3, 3], [4, 3], [3, 3], [4, 3], [2, 0], [3, 0], [2, 0], [3, 0]]),
   ] },
-  { short: 'オクターブ', desc: 'ルートと1オクターブ上を交互に。オクターブは「2本細い弦の2フレット先」。', phrases: [
-    ph('E', [[4, 0], [2, 2], [4, 0], [2, 2], [4, 0], [2, 2], [4, 0], [2, 2]]),
-    ph('A', [[3, 0], [1, 2], [3, 0], [1, 2], [3, 0], [1, 2], [3, 0], [1, 2]]),
-    ph('G → A', [[4, 3], [2, 5], [4, 3], [2, 5], [4, 5], [2, 7], [4, 5], [2, 7]]),
-    ph('C → A', [[3, 3], [1, 5], [3, 3], [1, 5], [4, 5], [2, 7], [4, 5], [2, 7]]),
-  ] },
-  { short: 'Cメジャー', desc: 'ドレミ（Cメジャー・スケール）。3弦3フレットの C から。', phrases: [
-    ph('上がる', [[3, 3], [2, 0], [2, 2], [2, 3], [1, 0], [1, 2], [1, 4], [1, 5]]),
-    ph('下がる', [[1, 5], [1, 4], [1, 2], [1, 0], [2, 3], [2, 2], [2, 0], [3, 3]]),
-    ph('低いほう', [[4, 0], [4, 1], [4, 3], [3, 0], [3, 2], [3, 3], [3, 2], [3, 0]]),
-    ph('ひとつおき', [[3, 3], [2, 2], [2, 0], [2, 3], [2, 2], [1, 0], [2, 3], [1, 2]]),
-  ] },
-  { short: 'ペンタ', desc: 'Aマイナー・ペンタトニック（5フレットの形）。人さし指は5フレット。', phrases: [
-    ph('上がる', [[4, 5], [4, 8], [3, 5], [3, 7], [2, 5], [2, 7], [1, 5], [1, 7]]),
-    ph('下がる', [[1, 7], [1, 5], [2, 7], [2, 5], [3, 7], [3, 5], [4, 8], [4, 5]]),
-    ph('てっぺん', [[2, 5], [2, 7], [1, 5], [1, 7], [1, 5], [2, 7], [2, 5], [3, 7]]),
-    ph('フレーズ', [[4, 5], [3, 5], [3, 7], [2, 5], [3, 7], [3, 5], [4, 8], [4, 5]]),
-  ] },
-  { short: 'アルペジオ', desc: 'コードの音（ルート・3度・5度）を1音ずつ。', phrases: [
-    ph('C', [[3, 3], [2, 2], [1, 0], [2, 2], [3, 3], [2, 2], [1, 0], [2, 2]]),
-    ph('Am', [[3, 0], [3, 3], [2, 2], [1, 2], [2, 2], [3, 3], [3, 0], [4, 0]]),
-    ph('G', [[4, 3], [3, 2], [2, 0], [1, 0], [2, 0], [3, 2], [4, 3], [3, 2]]),
-    ph('F', [[4, 1], [3, 0], [3, 3], [2, 3], [3, 3], [3, 0], [4, 1], [3, 0]]),
-  ] },
-  { short: 'ウォーキング', desc: '1拍に1音ずつ歩くように進むベースライン。次のコードへ近づく音に注目。', phrases: [
-    ph('C → F', [[3, 3], [2, 2], [1, 0], [1, 2], [2, 3], [1, 0], [1, 2], [1, 3]]),
-    ph('C → G（半音で）', [[3, 3], [2, 2], [2, 3], [2, 4], [1, 0], [2, 4], [2, 3], [2, 2]]),
-    ph('Am → Dm', [[3, 0], [3, 3], [2, 2], [3, 3], [2, 0], [2, 3], [1, 2], [2, 3]]),
-    ph('G → C', [[4, 3], [3, 2], [2, 0], [3, 2], [3, 3], [2, 2], [1, 0], [2, 2]]),
-  ] },
+  // ステージ4から先のフレーズは有料版（bass-billing/src/tab-full.ts。billing.js が /api/tab から受け取って phrases に入れる）
+  { short: 'オクターブ', desc: 'ルートと1オクターブ上を交互に。オクターブは「2本細い弦の2フレット先」。', phrases: [], locked: true },
+  { short: 'Cメジャー', desc: 'ドレミ（Cメジャー・スケール）。3弦3フレットの C から。', phrases: [], locked: true },
+  { short: 'ペンタ', desc: 'Aマイナー・ペンタトニック（5フレットの形）。人さし指は5フレット。', phrases: [], locked: true },
+  { short: 'アルペジオ', desc: 'コードの音（ルート・3度・5度）を1音ずつ。', phrases: [], locked: true },
+  { short: 'ウォーキング', desc: '1拍に1音ずつ歩くように進むベースライン。次のコードへ近づく音に注目。', phrases: [], locked: true },
 ];
 const STAGES = { fret: FRET_STAGES, name: NAME_STAGES, staff: STAFF_STAGES, tab: TAB_STAGES };
 const FREE = -1; // 自由練習
@@ -789,7 +848,7 @@ const itemsFor = (mode, stage) => {
 };
 const freeItems = (mode) => {
   const seen = new Map();
-  STAGES[mode].forEach((st) => itemsFor(mode, st).forEach((it) => {
+  STAGES[mode].forEach((st, i) => !isLockedStage(mode, i) && itemsFor(mode, st).forEach((it) => {
     if (!seen.has(it.key)) seen.set(it.key, mode === 'staff' ? { ...it, lo: 0, hi: MAX_FRET } : it);
   }));
   return [...seen.values()];
@@ -1130,23 +1189,25 @@ const renderHome = () => {
     const n = nextStageOf(m);
     const nodes = STAGES[m].map((s, i) => {
       const stars = bestStars(m, i);
-      const cls = stars ? 'done' : i === n ? 'next' : 'later';
-      return `<button type="button" class="node ${cls}" data-play="${m}:${i}" aria-label="${MODE_INFO[m].name} ステージ${i + 1} ${s.short}（★${stars}）">`
-        + `<span class="dot">${stars ? '✓' : i + 1}</span>`
+      const lock = isLockedStage(m, i);
+      const cls = lock ? 'later locked' : stars ? 'done' : i === n ? 'next' : 'later';
+      return `<button type="button" class="node ${cls}" data-play="${m}:${i}" aria-label="${MODE_INFO[m].name} ステージ${i + 1} ${s.short}（${lock ? '有料版' : `★${stars}`}）">`
+        + `<span class="dot">${lock ? '🔒' : stars ? '✓' : i + 1}</span>`
         + `<span><span class="nm">${s.short}</span><span class="st${stars ? '' : ' none'}">${starText(stars)}</span><span class="sub">${s.desc}</span></span></button>`;
     }).join('');
     return `<div class="card lane">${laneHead(m, `<span class="cnt">★ ${starsOf(m)}/${STAGES[m].length * 3}</span>`)}<div class="path">${nodes}</div></div>`;
   }).join('');
   // ほかの練習
-  $('extras').innerHTML = MODES.map((m) => `<button type="button" class="tile" data-play="${m}:${FREE}"><span class="ic" style="background:${MODE_INFO[m].bg}">${MODE_INFO[m].icon}</span><span><b>自由練習・${MODE_INFO[m].name}</b><small>${m === 'tab' ? '全ステージのフレーズからランダムに4つ' : '全ステージから、苦手を多めに。終わりなし'}</small></span></button>`).join('')
+  $('extras').innerHTML = MODES.map((m) => `<button type="button" class="tile" data-play="${m}:${FREE}"><span class="ic" style="background:${MODE_INFO[m].bg}">${MODE_INFO[m].icon}</span><span><b>自由練習・${MODE_INFO[m].name}</b><small>${m === 'tab' ? `${account.paid || !BILLING_ON ? '全' : '無料の'}ステージのフレーズからランダムに4つ` : `${account.paid || !BILLING_ON ? '全' : '無料の'}ステージから、苦手を多めに。終わりなし`}</small></span></button>`).join('')
+    + (BILLING_ON && !account.paid ? '<button type="button" class="tile" data-pay><span class="ic" style="background:#fff1d6">👑</span><span><b>有料版（月480円）</b><small>ステージ4から先を、すべての道で練習できます</small></span></button>' : '')
     + '<button type="button" class="tile" data-open="helpDlg"><span class="ic" style="background:#e8eef6">📖</span><span><b>ベースの楽譜の見方</b><small>弦の番号・フレット・ヘ音記号・TAB譜</small></span></button>';
 };
 const renderStageInfo = () => {
   const st = stageOf();
   if (!st) {
     $('stageInfo').innerHTML = `<b>自由練習・${MODE_INFO[mode].name}</b>${mode === 'tab'
-      ? '全ステージのフレーズからランダムに4つ。'
-      : '全ステージの中から、間違えやすいもの・時間がかかるものを多めに出します。終わりはありません。'}`;
+      ? `${account.paid || !BILLING_ON ? '全' : '無料の'}ステージのフレーズからランダムに4つ。`
+      : `${account.paid || !BILLING_ON ? '全' : '無料の'}ステージの中から、間違えやすいもの・時間がかかるものを多めに出します。終わりはありません。`}`;
     return;
   }
   let rule = '';
@@ -1405,7 +1466,11 @@ const showResult = (stars, line1, line2, isBest = false) => {
   mk('↺ もう一度', stars ? 'ghost' : '', startRun);
   const list = STAGES[mode];
   if (stars && stageIdx !== FREE && stageIdx < list.length - 1) {
-    mk('次のステージへ →', 'gold', () => { selectStage(stageIdx + 1); startRun(); });
+    mk('次のステージへ →', 'gold', () => {
+      if (isLockedStage(mode, stageIdx + 1)) { openPay(mode, stageIdx + 1); return; }
+      selectStage(stageIdx + 1);
+      startRun();
+    });
   }
   el.appendChild(row);
 };
@@ -1413,7 +1478,7 @@ const showResult = (stars, line1, line2, isBest = false) => {
 // ---- TAB譜 ----
 const shuffle = (a) => { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
 const startTab = () => {
-  const phrases = stageIdx === FREE ? shuffle(TAB_STAGES.flatMap((s) => s.phrases)).slice(0, 4) : stageOf().phrases;
+  const phrases = stageIdx === FREE ? shuffle(TAB_STAGES.flatMap((s, i) => (isLockedStage('tab', i) ? [] : s.phrases))).slice(0, 4) : stageOf().phrases;
   run = { mode: 'tab', stage: stageIdx, play: S().tabPlay, phrases, pi: 0, ni: 0, status: [], missedNote: false, ok: 0, good: 0, total: 0, extra: 0, t0: performance.now() };
   setRunningUI(true);
   beginPhrase();
@@ -1631,6 +1696,7 @@ const goView = (v) => {
   window.scrollTo(0, 0);
 };
 const openPlay = (m, i) => {
+  if (isLockedStage(m, i)) { openPay(m, i); return; }
   stopRun(false);
   mode = m;
   stageIdx = i;
@@ -1639,9 +1705,11 @@ const openPlay = (m, i) => {
   goView('play');
 };
 document.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-play], [data-open], [data-goto-view], [data-tab], [data-close]');
+  const t = e.target.closest('[data-play], [data-open], [data-goto-view], [data-tab], [data-close], [data-pay]');
   if (!t) return;
-  if (t.dataset.play) {
+  if (t.hasAttribute('data-pay')) {
+    openPay();
+  } else if (t.dataset.play) {
     const [m, i] = t.dataset.play.split(':');
     openPlay(m, Number(i));
   } else if (t.dataset.open) {
@@ -1832,6 +1900,7 @@ bindSettings();
 renderNoteBtns();
 goView('home');
 initMidi();
+initBilling();
 </script>
 </body>
 </html>
