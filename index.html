@@ -247,12 +247,16 @@ body[data-view="play"] .tabs, body[data-view="play"] .topbar, body[data-view="pl
 .tile .ic { width: 48px; height: 48px; border-radius: 14px; flex: none; display: grid; place-items: center; font-size: 1.5rem; }
 .tile b { display: block; }
 .tile small { color: var(--muted); font-size: .8rem; line-height: 1.4; display: block; }
-.siblings { margin-top: 28px; border-radius: 24px; padding: 20px 24px; color: #fff; display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; background: linear-gradient(120deg, #142b27 0%, #1d4a41 60%, #138a72 100%); box-shadow: var(--shadow); }
-.siblings div { flex: 1 1 260px; }
-.siblings h2 { margin: 0 0 2px; font-size: 1.1rem; }
-.siblings p { margin: 0; opacity: .85; font-size: .9rem; }
-.siblings a { color: #fff; font-weight: 700; text-decoration: none; background: rgba(255, 255, 255, .14); border-radius: 999px; padding: 6px 14px; white-space: nowrap; }
-.siblings a:hover { background: rgba(255, 255, 255, .24); }
+.premium {
+  margin-top: 28px; border-radius: 24px; padding: 22px 24px; color: #fff; display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: center;
+  background: linear-gradient(120deg, #142b27 0%, #1d4a41 60%, #138a72 100%); box-shadow: var(--shadow);
+}
+.premium[hidden] { display: none; }
+.premium div { flex: 1 1 260px; }
+.premium h2 { margin: 0 0 4px; font-size: 1.25rem; }
+.premium h2 em { font-style: normal; color: var(--gold); }
+.premium p { margin: 0; opacity: .85; font-size: .92rem; }
+.premium .chara { width: 42px; flex: none; }
 
 /* ---- 記録 ---- */
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; text-align: center; }
@@ -490,12 +494,10 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
     <div class="section-title"><h2>ほかの練習</h2></div>
     <div id="extras" class="extras"></div>
 
-    <div class="siblings">
-      <div><h2>ほかの楽器のトレーナー</h2><p>同じしくみで、ギター・ピアノ・ドラム・歌も練習できます。</p></div>
-      <a href="https://guitar-trainer.habatakijuku.com/">🎸 ギタートレーナー</a>
-      <a href="https://piano-trainer.habatakijuku.com/">🎹 読譜トレーナー</a>
-      <a href="https://drum-trainer.habatakijuku.com/">🥁 ドラムトレーナー</a>
-      <a href="https://vocal-trainer.habatakijuku.com/">🎤 ヴォーカルトレーナー</a>
+    <div id="premiumBanner" class="premium" hidden>
+      <img class="chara" src="/img/chara/crown.svg?v=2" alt="" width="42" height="38">
+      <div><h2>すべての道を、<em>最後まで</em>。</h2><p>有料版なら、ステージ4から先を、すべての道で練習できます。自由練習も全ステージから出題します。</p></div>
+      <button type="button" class="gold big" data-premium>有料版について</button>
     </div>
   </div>
 </section>
@@ -1206,8 +1208,8 @@ const renderHome = () => {
     return `<div class="card lane">${laneHead(m, `<span class="cnt">★ ${starsOf(m)}/${STAGES[m].length * 3}</span>`)}<div class="path">${nodes}</div></div>`;
   }).join('');
   // ほかの練習
+  $('premiumBanner').hidden = !(BILLING_ON && !account.paid);
   $('extras').innerHTML = MODES.map((m) => `<button type="button" class="tile" data-play="${m}:${FREE}"><span class="ic" style="background:${MODE_INFO[m].bg}">${MODE_INFO[m].icon}</span><span><b>自由練習・${MODE_INFO[m].name}</b><small>${m === 'tab' ? `${account.paid || !BILLING_ON ? '全' : '無料の'}ステージのフレーズからランダムに4つ` : `${account.paid || !BILLING_ON ? '全' : '無料の'}ステージから、苦手を多めに。終わりなし`}</small></span></button>`).join('')
-    + (BILLING_ON && !account.paid ? '<button type="button" class="tile" data-pay><span class="ic" style="background:#fff1d6">👑</span><span><b>有料版（月480円）</b><small>ステージ4から先を、すべての道で練習できます</small></span></button>' : '')
     + '<button type="button" class="tile" data-open="helpDlg"><span class="ic" style="background:#e8eef6">📖</span><span><b>ベースの楽譜の見方</b><small>弦の番号・フレット・ヘ音記号・TAB譜</small></span></button>';
 };
 const renderStageInfo = () => {
@@ -1713,6 +1715,7 @@ const openPlay = (m, i) => {
   saveStore();
   goView('play');
 };
+document.addEventListener('click', (e) => { if (e.target.closest('[data-premium]')) openPay(); });
 document.addEventListener('click', (e) => {
   const t = e.target.closest('[data-play], [data-open], [data-goto-view], [data-tab], [data-close], [data-pay]');
   if (!t) return;
