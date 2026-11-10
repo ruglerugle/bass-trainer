@@ -157,6 +157,11 @@ body[data-view="play"] .tabs, body[data-view="play"] .topbar, body[data-view="pl
 .continue button { justify-self: start; position: relative; z-index: 1; margin-top: 6px; }
 .continue button.big { background: #fff; color: var(--accent-dark); box-shadow: 0 4px 0 #b4e8da; }
 .continue button.big:hover { background: #f1fbf8; }
+.continue::after { display: none; }
+.continue .chara-hero { position: absolute; right: 16px; bottom: 12px; width: 60px; filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .25)); }
+@media (max-width: 520px) { .continue .chara-hero { width: 48px; right: 10px; bottom: 10px; } }
+.chara { display: block; height: auto; user-select: none; pointer-events: none; }
+.chara-result { width: 42px; margin: -4px auto -4px; }
 .today { display: grid; gap: 14px; align-content: start; }
 .today-row { display: flex; align-items: center; gap: 16px; }
 .ring { position: relative; width: 92px; height: 92px; flex: none; }
@@ -1160,6 +1165,8 @@ const ringSvg = (frac) => {
   const c = 2 * Math.PI * r;
   return `<svg viewBox="0 0 92 92"><circle class="track" cx="46" cy="46" r="${r}" fill="none" stroke-width="9"/><circle class="fill" cx="46" cy="46" r="${r}" fill="none" stroke-width="9" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - Math.min(1, frac))}"/></svg>`;
 };
+// キャラクター（img/chara/*.svg、design/gen_chara.py で描く）
+const charaImg = (name, cls) => `<img class="chara ${cls}" src="/img/chara/${name}.svg?v=1" alt="" width="60" height="54">`;
 const renderHome = () => {
   // 続きから
   const lm = MODES.includes(store.last.mode) ? store.last.mode : 'fret';
@@ -1171,7 +1178,8 @@ const renderHome = () => {
   $('continueCard').innerHTML = `<span class="kicker">${fresh ? 'まずはここから' : '続きから'}・${MODE_INFO[lm].lane}</span>`
     + `<h2>ステージ${li + 1}　${st.short}</h2><p>${st.desc}</p>`
     + `<span class="stars-line" aria-label="★${bestStars(lm, li)}">${starText(bestStars(lm, li))}</span>`
-    + `<button type="button" class="big" data-play="${lm}:${li}">▶ ${fresh ? 'はじめる' : '続ける'}</button>`;
+    + `<button type="button" class="big" data-play="${lm}:${li}">▶ ${fresh ? 'はじめる' : '続ける'}</button>`
+    + charaImg(fresh ? 'hello' : bestStars(lm, li) ? 'happy' : 'guide', 'chara-hero');
   // 今日の目標
   const todayN = store.daily.last === today() ? store.daily.today : 0;
   const goal = S().goal;
@@ -1451,6 +1459,7 @@ const showResult = (stars, line1, line2, isBest = false) => {
     if (isBest) el.insertAdjacentHTML('beforeend', '<em class="best">自己ベスト</em>');
     if (stars) fanfare();
   }
+  el.insertAdjacentHTML('afterbegin', charaImg(stars == null ? 'happy' : stars >= 3 ? 'celebrate' : stars ? 'happy' : 'cheer', 'chara-result'));
   const p1 = document.createElement('p'); p1.textContent = line1;
   const p2 = document.createElement('p'); p2.className = 'sub'; p2.textContent = line2;
   el.append(p1, p2);
