@@ -12,17 +12,21 @@ KINDS: dict[str, dict[str, str | int]] = {
     'drum-trainer': dict(kind='drum', ink='#2a1d33', light='#8ae3f7', base='#4cc3e6', shade='#2b9fc8', eye='#2f8fd1', crown_dy=-8),
     # ギター：ピックの子（テーマ＝緑 → 体はコーラル）
     'guitar-trainer': dict(kind='pick', ink='#1c3430', light='#ffb08f', base='#ff8a63', shade='#e5623d', eye='#1fae8c', crown_dy=-16),
-    # ベース：ヘ音記号の子（テーマ＝緑 → 体はラベンダー）
-    'bass-trainer': dict(kind='clef', ink='#1c3430', light='#d3c4ff', base='#ad92ff', shade='#8b6cec', eye='#1fae8c', crown_dy=0),
-    # ヴォーカル：マイクの子（テーマ＝赤紫 → 体はミント）
-    'vocal-trainer': dict(kind='mic', ink='#3a1a2c', light='#9ff3d0', base='#5fdcab', shade='#35b788', eye='#e0569a', crown_dy=-20),
+    # ベース：エレキベースの子（ボディが体、ネックと4つのペグが頭の上に伸びる。テーマ＝緑 → 体はラベンダー）
+    'bass-trainer': dict(kind='bass', ink='#1c3430', light='#d3c4ff', base='#ad92ff', shade='#8b6cec', eye='#1fae8c', crown_dy=-6, vb='10 8 210 212'),
+    # ヴォーカル：マイクを持って歌う子（テーマ＝赤紫 → 体はミント、マイクは銀）
+    'vocal-trainer': dict(kind='singer', ink='#3a1a2c', light='#9ff3d0', base='#5fdcab', shade='#35b788', eye='#e0569a', crown_dy=-20),
 }
 
 FLAT_HEAD = '<ellipse cx="100" cy="154" rx="58" ry="49" transform="rotate(-8 100 154)"'
 DRUM = '<path d="M40 116 A60 15 0 0 0 160 116 V188 A60 15 0 0 1 40 188 Z"'
 PICK = '<path d="M100 214 C 80 204 44 182 42 140 C 40 106 66 92 100 92 C 134 92 160 106 158 140 C 156 182 120 204 100 214 Z"'
 MIC = '<circle cx="100" cy="146" r="56"'
-BODY_SHAPE = {'drum': DRUM, 'pick': PICK, 'clef': FLAT_HEAD, 'mic': MIC}
+# エレキベースのボディ：左右の角（ホーン）は右を長く、下はまるく
+BASS = ('<path d="M100 208 C 56 208 36 186 38 158 C 39 140 46 130 44 118 C 44 110 50 108 56 112 '
+        'C 66 118 74 122 88 122 C 104 122 118 108 136 94 C 144 88 152 90 152 98 '
+        'C 152 114 160 128 162 152 C 164 186 144 208 100 208 Z"')
+BODY_SHAPE = {'drum': DRUM, 'pick': PICK, 'clef': FLAT_HEAD, 'mic': MIC, 'bass': BASS, 'singer': MIC}
 
 
 def make(c: dict[str, str | int]) -> dict[str, str]:
@@ -38,14 +42,16 @@ def make(c: dict[str, str | int]) -> dict[str, str]:
         return (f'<path d="{d}" stroke="{ink}" stroke-width="14" stroke-linecap="round" fill="none"/>'
                 f'<path d="{d}" stroke="{base}" stroke-width="8" stroke-linecap="round" fill="none"/>' + hand)
 
-    arms = {
-        'down': limb('M47 170 q-10 9 -15 22', (31, 194)) + limb('M151 172 q10 9 15 22', (167, 196)),
-        'wave': limb('M47 170 q-10 9 -15 22', (31, 194)) + limb('M154 162 q12 -6 16 -24', (172, 134)),
-        'up': limb('M48 160 q-12 -8 -12 -26', (36, 130)) + limb('M154 160 q14 -8 16 -28', (172, 128)),
-        'point': limb('M47 170 q-10 9 -15 22', (31, 194)) + limb('M154 166 q10 -2 20 -8', (176, 156))
-        + f'<path d="M182 152 l9 -5" stroke="{ink}" stroke-width="9" stroke-linecap="round"/><path d="M182 152 l9 -5" stroke="{base}" stroke-width="4" stroke-linecap="round"/>',
-        'fists': limb('M54 174 q-4 10 8 14', (62, 188), fist=True) + limb('M146 174 q4 10 -8 14', (138, 188), fist=True),
+    l_down = limb('M47 170 q-10 9 -15 22', (31, 194))
+    arms = {  # ポーズ名: (左腕, 右腕)
+        'down': (l_down, limb('M151 172 q10 9 15 22', (167, 196))),
+        'wave': (l_down, limb('M154 162 q12 -6 16 -24', (172, 134))),
+        'up': (limb('M48 160 q-12 -8 -12 -26', (36, 130)), limb('M154 160 q14 -8 16 -28', (172, 128))),
+        'point': (l_down, limb('M154 166 q10 -2 20 -8', (176, 156))
+                  + f'<path d="M182 152 l9 -5" stroke="{ink}" stroke-width="9" stroke-linecap="round"/><path d="M182 152 l9 -5" stroke="{base}" stroke-width="4" stroke-linecap="round"/>'),
+        'fists': (limb('M54 174 q-4 10 8 14', (62, 188), fist=True), limb('M146 174 q4 10 -8 14', (138, 188), fist=True)),
     }
+    front = ''  # 顔より手前に描くもの（ヴォーカルのマイク）
 
     def big_eye(x: float, y: float, rx: float = 7, ry: float = 9) -> str:
         return (f'<ellipse cx="{x}" cy="{y}" rx="{rx}" ry="{ry}" fill="url(#ge)"/>'
@@ -102,22 +108,38 @@ def make(c: dict[str, str | int]) -> dict[str, str]:
         hl = '<path d="M56 136 v16" stroke="#fff" stroke-width="5" stroke-linecap="round"/><circle cx="56" cy="162" r="2.6" fill="#fff"/>'
     elif kind == 'pick':
         hl = '<path d="M56 126 q6 -18 26 -24" stroke="#fff" stroke-width="6" stroke-linecap="round" fill="none"/><circle cx="52" cy="141" r="3.2" fill="#fff"/>'
-    elif kind == 'clef':
-        # ヘ音記号のうず：頭から上へ回って、細くなりながら左下へ抜ける
-        tail = 'M92 108 C 146 70 208 94 204 148 C 200 186 168 206 112 216 C 154 198 184 180 186 148 C 188 112 152 94 110 116 Z'
-        back = (f'<path d="{tail}" fill="url(#gb)" stroke="{ink}" stroke-width="4.5" stroke-linejoin="round"/>'
-                f'<path d="M168 96 C 186 104 196 120 197 140" stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none" opacity=".8"/>')
-        over = ''.join(f'<circle cx="214" cy="{y}" r="7" fill="{base}" stroke="{ink}" stroke-width="3.5"/>' for y in (122, 160))
-        hl = '<path d="M58 140 q6 -15 24 -22" stroke="#fff" stroke-width="6" stroke-linecap="round" fill="none"/><circle cx="54" cy="155" r="3.2" fill="#fff"/>'
-    else:  # mic
-        back = (f'<path d="M80 186 L86 212 Q100 219 114 212 L120 186 Z" fill="#4a3d5c" stroke="{ink}" stroke-width="4" stroke-linejoin="round"/>'
-                f'<path d="M90 196 l3 14" stroke="#8a7aa3" stroke-width="3" stroke-linecap="round"/>'
-                f'<ellipse cx="100" cy="190" rx="26" ry="7" fill="#e9eef7" stroke="{ink}" stroke-width="3.5"/>')
-        hatch = ''.join(f'<path d="M{x} 86 l40 40" stroke="{ink}" stroke-width="1.6" opacity=".22"/><path d="M{x + 40} 86 l-40 40" stroke="{ink}" stroke-width="1.6" opacity=".22"/>'
-                        for x in range(30, 180, 12))
-        detail = f'<path d="M30 80 H170 V124 Q100 108 30 124 Z" fill="{shade}" opacity=".55"/>{hatch}'
-        over = f'<path d="M47 124 Q100 106 153 124" stroke="{ink}" stroke-width="3.5" fill="none" stroke-linecap="round"/>'
-        hl = '<path d="M62 106 q12 -12 30 -14" stroke="#fff" stroke-width="5.5" stroke-linecap="round" fill="none"/><circle cx="56" cy="148" r="3.2" fill="#fff"/>'
+    elif kind == 'bass':
+        wood, board, metal = '#f2cf94', '#6b4630', '#e9eef7'
+        # ネック（指板・フレット・4本の弦）とヘッド（片側に4つのペグ）。体の後ろから右上へ伸びる
+        neck = (f'<rect x="-11" y="-78" width="22" height="80" rx="3" fill="{wood}" stroke="{ink}" stroke-width="3.5"/>'
+                f'<rect x="-8" y="-76" width="16" height="78" fill="{board}"/>'
+                + ''.join(f'<path d="M-8 {y} h16" stroke="{metal}" stroke-width="1.8"/>' for y in (-14, -28, -40, -51, -61, -70))
+                + ''.join(f'<circle cx="0" cy="{y}" r="2.2" fill="#fff"/>' for y in (-21, -45))
+                + ''.join(f'<path d="M{x} -76 V2" stroke="#fff" stroke-width="1" opacity=".85"/>' for x in (-5.4, -1.8, 1.8, 5.4))
+                + ''.join(f'<path d="M-10 {y} h-7" stroke="{ink}" stroke-width="3"/><circle cx="-19" cy="{y}" r="4.4" fill="{metal}" stroke="{ink}" stroke-width="2.8"/>'
+                          for y in (-82, -91, -100, -109))
+                + f'<path d="M-10 -74 C -13 -88 -8 -106 3 -116 C 13 -120 18 -112 15 -104 C 12 -94 11 -84 10 -74 Z" fill="{wood}" stroke="{ink}" stroke-width="3.5" stroke-linejoin="round"/>'
+                + f'<path d="M-4 -82 C -5 -92 -2 -102 4 -108" stroke="#fff" stroke-width="3" stroke-linecap="round" fill="none" opacity=".8"/>')
+        back = f'<g transform="translate(114 122) rotate(18)">{neck}</g>'
+        # ピックアップとブリッジ、その間の弦（口の下）
+        over = (''.join(f'<path d="M{x} 177 V196" stroke="#fff" stroke-width="1.3" opacity=".9"/>' for x in (89, 96.3, 103.7, 111))
+                + f'<rect x="80" y="180" width="40" height="9" rx="4.5" fill="#2b2b33" stroke="{ink}" stroke-width="2.5"/>'
+                + ''.join(f'<circle cx="{x}" cy="184.5" r="1.6" fill="{metal}"/>' for x in (89, 96.3, 103.7, 111))
+                + f'<rect x="82" y="194" width="36" height="6" rx="2" fill="{metal}" stroke="{ink}" stroke-width="2.5"/>')
+        hl = '<path d="M50 142 q1 -16 10 -26" stroke="#fff" stroke-width="5.5" stroke-linecap="round" fill="none"/><circle cx="47" cy="156" r="3" fill="#fff"/>'
+    else:  # singer：銀のマイクを口の近くに持って歌う
+        metal = '#e3e8f1'
+        mesh = ''.join(f'<path d="M{x} 164 l32 32 M{x + 32} 164 l-32 32" stroke="{ink}" stroke-width="1.3" opacity=".35"/>' for x in range(50, 110, 7))
+        front = (f'<path d="M76 193 L58 217" stroke="{ink}" stroke-width="16" stroke-linecap="round"/>'
+                 f'<path d="M76 193 L58 217" stroke="#3a3348" stroke-width="10" stroke-linecap="round"/>'
+                 f'<path d="M62 204 l6 4" stroke="#6d6280" stroke-width="2.5" stroke-linecap="round"/>'
+                 f'<path d="M70 192 l13 8" stroke="{ink}" stroke-width="8.5" stroke-linecap="round"/><path d="M70 192 l13 8" stroke="{metal}" stroke-width="4" stroke-linecap="round"/>'
+                 f'<clipPath id="cm"><circle cx="82" cy="180" r="15.5"/></clipPath>'
+                 f'<circle cx="82" cy="180" r="15.5" fill="{metal}"/><g clip-path="url(#cm)">{mesh}<path d="M60 188 Q84 200 100 176 V204 H60Z" fill="#b8c0cf" opacity=".6"/></g>'
+                 f'<circle cx="82" cy="180" r="15.5" fill="none" stroke="{ink}" stroke-width="3.5"/><circle cx="76" cy="173" r="3.2" fill="#fff"/>'
+                 + limb('M50 176 q2 18 14 30', (64, 207)))
+        arms = {k: ('', r) for k, (_, r) in arms.items()}
+        hl = '<path d="M60 112 q10 -14 28 -18" stroke="#fff" stroke-width="6" stroke-linecap="round" fill="none"/><circle cx="52" cy="128" r="3.2" fill="#fff"/>'
 
     defs = (f'<linearGradient id="gb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{c["light"]}"/><stop offset="1" stop-color="{base}"/></linearGradient>'
             f'<linearGradient id="ge" x1="0" y1="0" x2="0" y2="1"><stop offset=".35" stop-color="{ink}"/><stop offset="1" stop-color="{c["eye"]}"/></linearGradient>'
@@ -131,9 +153,9 @@ def make(c: dict[str, str | int]) -> dict[str, str]:
     cheeks = ''.join(f'<ellipse cx="{x}" cy="166" rx="11" ry="7" fill="url(#gc)"/>' for x in (66, 134))
     out = {}
     for name, (e, m, a, deco) in poses.items():
-        out[name] = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="10 30 210 190">'
+        out[name] = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{c.get("vb", "10 30 210 190")}">'
                      f'<defs>{defs}</defs><ellipse cx="100" cy="213" rx="38" ry="6" fill="#1e1b3a" opacity=".18"/>'
-                     f'{back}{feet}{arms[a]}{torso}{cheeks}{eyes[e]}{mouth[m]}{deco}</svg>')
+                     f'{back}{feet}{arms[a][0]}{arms[a][1]}{torso}{cheeks}{eyes[e]}{mouth[m]}{front}{deco}</svg>')
     return out
 
 

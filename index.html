@@ -1166,7 +1166,7 @@ const ringSvg = (frac) => {
   return `<svg viewBox="0 0 92 92"><circle class="track" cx="46" cy="46" r="${r}" fill="none" stroke-width="9"/><circle class="fill" cx="46" cy="46" r="${r}" fill="none" stroke-width="9" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - Math.min(1, frac))}"/></svg>`;
 };
 // キャラクター（img/chara/*.svg、design/gen_chara.py で描く）
-const charaImg = (name, cls) => `<img class="chara ${cls}" src="/img/chara/${name}.svg?v=1" alt="" width="60" height="54">`;
+const charaImg = (name, cls) => `<img class="chara ${cls}" src="/img/chara/${name}.svg?v=2" alt="" width="60" height="54">`;
 const renderHome = () => {
   // 続きから
   const lm = MODES.includes(store.last.mode) ? store.last.mode : 'fret';
