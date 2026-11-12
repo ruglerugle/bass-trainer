@@ -322,6 +322,10 @@ body[data-view="play"] .tabs, body[data-view="play"] .topbar, body[data-view="pl
 #score svg { display: block; max-width: 100%; height: auto; }
 body[data-mode="staff"] #score svg { width: 260px; }
 body[data-mode="staff"] .sheet { max-width: 340px; }
+/* 曲の道：TAB譜は縮めずに、はみ出す分は横にスクロールする */
+body[data-mode="song"] #score { justify-items: safe center; }
+body[data-mode="song"] #score svg { max-width: none; }
+#songSecSeg { flex-wrap: wrap; justify-content: center; }
 /* 指板 */
 .fb-box { width: 100%; background: #08130f; border-radius: 18px; padding: 10px 8px 4px; box-shadow: 0 0 0 1px rgba(255, 255, 255, .06) inset, 0 18px 40px rgba(0, 0, 0, .3); }
 .fb-wrap { width: 100%; overflow-x: auto; scrollbar-width: thin; scrollbar-color: #2b4a43 transparent; }
@@ -530,7 +534,10 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
             <span>BPM</span>
           </div>
         </div>
-        <div id="practiceBar" data-modes="tab"></div>
+        <div class="controls" data-modes="song">
+          <div class="seg" id="songSecSeg" role="group" aria-label="弾くところ"></div>
+        </div>
+        <div id="practiceBar" data-modes="tab song"></div>
         <div class="controls">
           <button id="startBtn" class="gold big" type="button">▶ スタート</button>
         </div>
@@ -538,16 +545,16 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
       </div>
       <div id="assessBanner" hidden></div>
       <div id="prompt" class="prompt" aria-live="polite"></div>
-      <div class="sheet" data-modes="staff tab"><div id="score" role="img" aria-label="楽譜"></div></div>
+      <div class="sheet" data-modes="staff tab song"><div id="score" role="img" aria-label="楽譜"></div></div>
       <div class="fb-box"><div class="fb-wrap"><div id="fretboard"></div></div></div>
       <div id="noteBtns" class="note-btns" data-modes="fret" role="group" aria-label="音名で答える"></div>
       <div id="feedback" class="feedback" aria-live="polite"></div>
-      <div id="lapLine" class="lap-line" data-modes="tab" aria-live="polite"></div>
-      <div id="tmeter" data-modes="tab" aria-hidden="true"></div>
+      <div id="lapLine" class="lap-line" data-modes="tab song" aria-live="polite"></div>
+      <div id="tmeter" data-modes="tab song" aria-hidden="true"></div>
       <div class="controls">
         <button id="skipBtn" class="ghost" type="button" hidden>答えを見る</button>
         <button id="stopBtn" class="ghost" type="button" hidden>■ やめる</button>
-        <button id="demoBtn" class="ghost" type="button" data-modes="tab">♪ お手本を聞く</button>
+        <button id="demoBtn" class="ghost" type="button" data-modes="tab song">♪ お手本を聞く</button>
       </div>
       <div id="heard" class="heard" aria-live="off"></div>
       <p id="inputNote" class="kb-note"></p>
@@ -718,6 +725,7 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
   </div>
 </dialog>
 
+<script src="band-songs.js?v=1"></script>
 <script src="billing.js?v=1"></script>
 <script src="timing.js?v=2"></script>
 <script src="assess.js?v=1"></script>
@@ -732,7 +740,9 @@ const STORE_KEY = 'bassTrainer_v1';
 const defaultStore = () => ({
   settings: { chan: 'asc', strictString: true, octaveFree: false, minVel: 8, latency: 0, names: 'cde', lefty: false, midiSound: false, vol: 0.7, tabPlay: 'order', bpm: 70, goal: 50,
     // 練習モード（TAB譜）：選んだフレーズを止めるまで繰り返す
-    practice: { loop: false, from: 0, to: 0 } },
+    practice: { loop: false, from: 0, to: 0 },
+    // 曲の道：弾くセクション（-1 は通し）と、速さ・繰り返し
+    songSec: 0, songPractice: { speed: 100, loop: false } },
   stats: {}, best: {}, daily: { last: '', streak: 0, today: 0 }, total: { n: 0, ok: 0 }, last: { mode: 'fret', stage: 0 },
 });
 const loadStore = () => {
@@ -1157,6 +1167,7 @@ const applyModeVisibility = () => {
     name: 'MIDIベースで弾いて答えます。指定の弦で、言われた音の場所を探してください。',
     staff: 'MIDIベースで、ヘ音記号の楽譜の音を弾きます。ステージのポジション（フレットの範囲）の中なら、どの弦で弾いても正解です。',
     tab: 'TAB譜のとおりに弾きます。弦まで合っているかを見ます（MIDIの弦の判定がオフのときは音の高さだけ）。',
+    song: '4拍のカウントのあと、曲のテンポで弾きます。×（ゴーストノート）と休符は判定しません。',
   };
   $('inputNote').textContent = `${notes[mode]} MIDIベースがないときは、指板の図をクリックしても弾けます。`;
 };
@@ -1218,7 +1229,7 @@ const renderHome = () => {
         + `<span><span class="nm">${s.short}</span><span class="st${stars ? '' : ' none'}">${starText(stars)}</span><span class="sub">${s.desc}</span></span></button>`;
     }).join('');
     return `<div class="card lane">${laneHead(m, `<span class="cnt">★ ${starsOf(m)}/${STAGES[m].length * 3}</span>`)}<div class="path">${nodes}</div></div>`;
-  }).join('');
+  }).join('') + songLaneHtml();
   // ほかの練習
   $('premiumBanner').hidden = !(BILLING_ON && !account.paid);
   $('extras').innerHTML = MODES.map((m) => `<button type="button" class="tile" data-play="${m}:${FREE}"><span class="ic" style="background:${MODE_INFO[m].bg}">${MODE_INFO[m].icon}</span><span><b>自由練習・${MODE_INFO[m].name}</b><small>${m === 'tab' ? `${account.paid || !BILLING_ON ? '全' : '無料の'}ステージのフレーズからランダムに4つ` : `${account.paid || !BILLING_ON ? '全' : '無料の'}ステージから、苦手を多めに。終わりなし`}</small></span></button>`).join('')
@@ -1228,6 +1239,7 @@ const renderHome = () => {
 };
 const renderStageInfo = () => {
   renderPractice();
+  if (mode === 'song') { renderSongInfo(); return; }
   const st = stageOf();
   if (!st) {
     $('stageInfo').innerHTML = `<b>自由練習・${MODE_INFO[mode].name}</b>${mode === 'tab'
@@ -1242,6 +1254,7 @@ const renderStageInfo = () => {
 };
 const setProg = (frac) => { $('playProg').style.width = `${Math.max(0, Math.min(1, frac)) * 100}%`; };
 const renderPlayHead = () => {
+  if (mode === 'song') { $('playTitle').textContent = `${SONG_INFO.lane}　${BAND_SONGS[stageIdx].title}`; return; }
   const st = stageOf();
   $('playTitle').textContent = `${MODE_INFO[mode].lane}　${st ? `ステージ${stageIdx + 1}・${st.short}` : '自由練習'}`;
 };
@@ -1262,6 +1275,7 @@ const renderIdle = () => {
   setProg(0);
   renderPlayHead();
   setFeedback('');
+  if (mode === 'song') renderSongIdle();
   if (mode === 'staff') renderStaff(stageOf()?.notes[0] ?? 28, false);
   if (mode === 'tab') {
     const phr = stageOf() ? stageOf().phrases[0] : TAB_STAGES[0].phrases[0];
@@ -1300,7 +1314,7 @@ const renderStats = () => {
 const setRunningUI = (running) => {
   $('intro').hidden = running;
   $('stopBtn').hidden = !running;
-  $('skipBtn').hidden = !running || mode === 'tab';
+  $('skipBtn').hidden = !running || mode === 'tab' || mode === 'song';
   $('result').hidden = true;
   document.querySelectorAll('#tabPlaySeg button, #bpmBox button, #bpmBox input').forEach((b) => { b.disabled = running; });
 };
@@ -1557,7 +1571,8 @@ const showResult = (stars, line1, line2, isBest = false) => {
   };
   mk('ホームへ', 'ghost', () => goView('home'));
   mk('↺ もう一度', stars ? 'ghost' : '', startRun);
-  const list = STAGES[mode];
+  if (mode === 'song') songNextButton(stars, mk);
+  const list = STAGES[mode] || [];
   if (stars && stageIdx !== FREE && stageIdx < list.length - 1) {
     mk('次のステージへ →', 'gold', () => {
       if (isLockedStage(mode, stageIdx + 1)) { openPay(mode, stageIdx + 1); return; }
@@ -1573,6 +1588,7 @@ const tabPractice = () => ({ loop: false, from: 0, to: 0, ...(S().practice || {}
 const meter = Timing.meter($('tmeter'), { good: 150, perfect: 70 });
 let practiceUI = null;
 const renderPractice = () => {
+  if (mode === 'song') { renderSongPractice(); return; }
   if (mode !== 'tab') return;
   const st = stageOf();
   const phrases = st ? st.phrases : [];
@@ -1791,12 +1807,419 @@ const playDemo = () => {
   p.notes.forEach(([s, f], i) => pluck(OPEN[s] + f, t0 + i * beat, 0.9));
 };
 
+// ---- 曲の道（バンドの曲を、セクションごとに曲のテンポで弾く）----
+// 曲のデータは band-songs.js（genre-songs/build.mjs が書き出す）。小節は「弦:フレット/長さ」の並び
+const SONG_INFO = { lane: '曲の道', desc: 'バンドの曲を、セクションごとに曲のテンポで弾く', icon: '🎶', bg: '#e8eef6' };
+const SONG_ALL = -1; // 通しで弾く
+const SONG_TOKEN = /\([^)]*\)\/\S+|\S+/g; // build.mjs と同じ区切り方（和音はひとかたまり）
+const SONG_BEATS = { w: 4, h: 2, q: 1, 8: 0.5, 16: 0.25 };
+const SONG_POS = /^(\d):(\d{1,2})([bhpvmTP]*)$/;
+// 技の印 → TAB譜の上に書く文字（b チョーキング、h ハンマリング、p プリング、v ビブラート、m ブリッジミュート、T サムピング、P プル）
+// ベースの × はゴーストノート（弦をミュートして刻む）
+const TECH_MARK = { b: 'B', h: 'H', p: 'P', v: '~', m: 'P.M.', T: 'T', P: 'P' };
+const STRUM_MS = 60; // 和音のほかの弦の音が届くまでの幅
+const parseSongPos = (txt) => {
+  const m = SONG_POS.exec(txt);
+  if (!m || OPEN[Number(m[1])] == null) throw new Error(`曲のTABの書き方が違います「${txt}」`);
+  return { s: Number(m[1]), f: Number(m[2]), tech: m[3] };
+};
+const parseSongToken = (tok) => {
+  const m = /^(.+)\/(w|h|q|8|16)(\.?)~?$/.exec(tok);
+  if (!m) throw new Error(`曲のTABの長さが読めません「${tok}」`);
+  const [, body, dur, dot] = m;
+  const base = { dur, dotted: !!dot, beats: SONG_BEATS[dur] * (dot ? 1.5 : 1) };
+  if (body === 'r') return { ...base, kind: 'rest', notes: [] };
+  if (body === 'x') return { ...base, kind: 'mute', notes: [] };
+  const notes = (body.startsWith('(') ? body.slice(1, -1).trim().split(/\s+/) : [body]).map(parseSongPos);
+  return { ...base, kind: notes.length > 1 ? 'chord' : 'note', notes };
+};
+// 1小節 → 拍の位置つきの出来事の列
+const parseSongBar = (bar) => {
+  let beat = 0;
+  return (bar.trim().match(SONG_TOKEN) || []).map((tok, ix) => {
+    const ev = { ...parseSongToken(tok), ix, beat };
+    beat += ev.beats;
+    return ev;
+  });
+};
+// ミュートの刻み（x）は、前（なければ後ろ）の音と同じ弦に × を書く
+const placeMutes = (bars) => {
+  const flat = bars.flat();
+  flat.forEach((ev, k) => {
+    if (ev.kind !== 'mute') return;
+    const near = [...flat.slice(0, k).reverse(), ...flat.slice(k + 1)].find((e) => e.notes.length);
+    ev.strings = near ? near.notes.map((n) => n.s) : [Math.ceil(STRINGS.length / 2)];
+  });
+  return bars;
+};
+const songCache = new Map();
+const songOf = (i) => {
+  if (songCache.has(i)) return songCache.get(i);
+  const src = BAND_SONGS[i];
+  if (!src) throw new Error(`曲が見つかりません（${i}）`);
+  const [num, den] = src.time.split('/').map(Number);
+  let at = 0; // 曲のはじめから数えた小節
+  const sections = src.sections.map((sec) => {
+    const out = { name: sec.name, barNo: at, bars: placeMutes(sec.bars.map(parseSongBar)) };
+    at += sec.bars.length;
+    return out;
+  });
+  const song = { ...src, barBeats: (num * 4) / den, sections };
+  songCache.set(i, song);
+  return song;
+};
+
+// 無料はイントロ（最初のセクション）だけ。通しと、ほかのセクションは有料版
+const songSecLocked = (k) => BILLING_ON && !account.paid && k !== 0;
+const songBestKey = (song, k) => `song:${song.id}:${k === SONG_ALL ? 'all' : k}`;
+const songStars = (i) => Object.entries(store.best)
+  .filter(([key]) => key.startsWith(`song:${BAND_SONGS[i].id}:`))
+  .reduce((a, [, v]) => Math.max(a, v.stars || 0), 0);
+const songPractice = () => ({ speed: 100, loop: false, ...(S().songPractice || {}) });
+const songSecOf = (song) => {
+  const k = S().songSec;
+  const v = k === SONG_ALL ? SONG_ALL : Math.max(0, Math.min(Number(k) || 0, song.sections.length - 1));
+  return songSecLocked(v) ? 0 : v; // 有料版でなくなったときは、イントロに戻す
+};
+const songSecName = (song, k) => (k === SONG_ALL ? '通し' : song.sections[k].name);
+
+const songLaneHtml = () => {
+  if (typeof BAND_SONGS === 'undefined' || !BAND_SONGS.length) return '';
+  const next = BAND_SONGS.findIndex((_, i) => songStars(i) === 0);
+  const nodes = BAND_SONGS.map((s, i) => {
+    const stars = songStars(i);
+    const cls = stars ? 'done' : i === next ? 'next' : 'later';
+    return `<button type="button" class="node ${cls}" data-play="song:${i}" aria-label="${SONG_INFO.lane} ${s.title}（★${stars}）">`
+      + `<span class="dot">${stars ? '✓' : i + 1}</span>`
+      + `<span><span class="nm">${s.title}</span><span class="st${stars ? '' : ' none'}">${starText(stars)}</span><span class="sub">${s.genre}・${s.tech}</span></span></button>`;
+  }).join('');
+  const got = BAND_SONGS.reduce((a, _, i) => a + songStars(i), 0);
+  const head = `<div class="lane-head"><span class="ic" style="background:${SONG_INFO.bg}">${SONG_INFO.icon}</span><div><h3>${SONG_INFO.lane}</h3><p>${SONG_INFO.desc}${BILLING_ON && !account.paid ? '（無料はイントロ）' : ''}</p></div><span class="cnt">★ ${got}/${BAND_SONGS.length * 3}</span></div>`;
+  return `<div class="card lane">${head}<div class="path">${nodes}</div></div>`;
+};
+const openSong = (i) => {
+  stopRun(false);
+  mode = 'song';
+  stageIdx = i;
+  goView('play');
+};
+
+// 弾くところ（セクション・通し）のボタンと、曲の説明
+const renderSongInfo = () => {
+  const song = songOf(stageIdx);
+  const k = songSecOf(song);
+  const btn = (v, label) => `<button type="button" data-sec="${v}" aria-pressed="${k === v}">${songSecLocked(v) ? '🔒 ' : ''}${label}</button>`;
+  $('songSecSeg').innerHTML = song.sections.map((sec, j) => btn(j, sec.name)).join('') + btn(SONG_ALL, '通し');
+  $('stageInfo').innerHTML = `<b>${song.title}</b>${song.genre}・テンポ ${song.tempo}・${song.time}拍子<br>${song.tech}<br>`
+    + `<span class="rule">クリア：合った音が85%以上（速さ100%・繰り返しなしの回だけ記録）</span>`;
+};
+const renderSongPractice = () => {
+  const pr = songPractice();
+  const song = songOf(stageIdx);
+  const opts = {
+    speed: true, wait: false, loop: true, ranges: [], state: pr,
+    note: (x) => (x.speed < 100 || x.loop
+      ? `テンポ ${Math.round((song.tempo * x.speed) / 100)}${x.loop ? '・「やめる」まで繰り返す' : ''}。練習モードの回は★の記録には入りません` : ''),
+    onChange: (x) => { S().songPractice = { speed: x.speed, loop: x.loop }; saveStore(); },
+  };
+  if (!practiceUI) practiceUI = Timing.practiceBar($('practiceBar'), opts);
+  else { practiceUI.update(opts); practiceUI.set(pr); }
+};
+$('songSecSeg').addEventListener('click', (e) => {
+  const b = e.target instanceof Element ? e.target.closest('button[data-sec]') : null;
+  if (!b || run) return;
+  const k = Number(b.dataset.sec);
+  if (songSecLocked(k)) { openPay(); return; }
+  S().songSec = k;
+  saveStore();
+  renderSongInfo();
+  renderSongIdle();
+});
+const renderSongIdle = () => {
+  const song = songOf(stageIdx);
+  const k = songSecOf(song);
+  const sec = song.sections[k === SONG_ALL ? 0 : k];
+  renderSongTab(sec, null, null);
+  $('prompt').innerHTML = `<small>${songSecName(song, k)}</small>`;
+};
+
+// TAB譜：1セクション（4小節）を、2小節ずつ2段に。長さは本当の音符の長さで、符尾と連桁をつける
+const SONG_ROW_H = 166; // 段の高さ（譜表の上の空きを詰めて、下に符尾と連桁）
+const SONG_COLORS = { ok: 'rgba(46,139,87,.22)', early: 'rgba(47,111,184,.26)', late: 'rgba(217,112,28,.28)', miss: 'rgba(200,67,58,.22)' };
+const songTickable = (ev) => {
+  const duration = `${ev.dur}${ev.dotted ? 'd' : ''}`;
+  if (ev.kind === 'rest') return new VF.GhostNote({ duration });
+  const positions = ev.kind === 'mute'
+    ? ev.strings.map((s) => ({ str: s, fret: 'X' }))
+    : ev.notes.map((n) => ({ str: n.s, fret: n.f }));
+  const tn = new VF.TabNote({ positions, duration, stem_direction: -1 }, true);
+  const marks = [...new Set(ev.notes.flatMap((n) => [...n.tech].map((c) => TECH_MARK[c])))];
+  if (marks.length) {
+    const an = new VF.Annotation(marks.join(' ')).setFont('Arial', 10, 'bold');
+    an.setVerticalJustification(VF.Annotation.VerticalJustify.TOP);
+    tn.addModifier(an, 0);
+  }
+  return tn;
+};
+// 同じ拍の中の、続いた8分・16分の音を連桁でつなぐ（休符で切る）
+const songBeams = (bar, tickables) => {
+  const groups = [];
+  let cur = [];
+  let beatOf = -1;
+  bar.forEach((ev, i) => {
+    const b = Math.floor(ev.beat + 1e-6);
+    const beamable = ev.kind !== 'rest' && ev.beats < 1 && Math.floor(ev.beat + ev.beats - 1e-6) === b;
+    if (!beamable || b !== beatOf) { if (cur.length > 1) groups.push(cur); cur = []; }
+    if (beamable) { cur.push(tickables[i]); beatOf = b; } else beatOf = -1;
+  });
+  if (cur.length > 1) groups.push(cur);
+  return groups.map((g) => new VF.Beam(g));
+};
+// status: 小節ごとの判定の色（なければ空）、cur: [小節, 何番目] の光らせる音
+const renderSongTab = (sec, status, cur) => {
+  const el = $('score');
+  el.innerHTML = '';
+  const most = Math.max(...sec.bars.map((b) => b.length));
+  const barW = Math.max(330, 40 + most * 26);
+  const clefW = 34;
+  const perRow = 2;
+  const rows = Math.ceil(sec.bars.length / perRow);
+  const W = 16 + clefW + perRow * barW;
+  // 段ごとに別の SVG にする（1枚に描くと、2段目の連桁が1段目の高さに描かれるため）
+  const ctxs = Array.from({ length: rows }, () => {
+    const r = new VF.Renderer(el, VF.Renderer.Backends.SVG);
+    r.resize(W, SONG_ROW_H);
+    return r.getContext();
+  });
+  sec.bars.forEach((bar, bi) => {
+    const ctx = ctxs[Math.floor(bi / perRow)];
+    const col = bi % perRow;
+    const x = 8 + (col ? clefW + col * barW : 0);
+    const stave = new VF.TabStave(x, -16, barW + (col ? 0 : clefW), { num_lines: STRINGS.length });
+    if (!col) stave.addClef('tab');
+    stave.setMeasure(sec.barNo + bi + 1);
+    stave.setContext(ctx).draw();
+    const tickables = bar.map(songTickable);
+    const voice = new VF.Voice({ num_beats: 4, beat_value: 4 });
+    voice.addTickables(tickables);
+    tickables.forEach((n) => n.setStave(stave));
+    const beams = songBeams(bar, tickables);
+    new VF.Formatter().joinVoices([voice]).formatToStave([voice], stave);
+    // 判定の色と、いまの音（音符より先に塗る）
+    const top = stave.getYForLine(0) - 10;
+    const hgt = stave.getYForLine(STRINGS.length - 1) - stave.getYForLine(0) + 20;
+    tickables.forEach((n, i) => {
+      const isCur = cur && cur[0] === bi && cur[1] === i;
+      const fill = isCur ? 'rgba(19,138,114,.30)' : SONG_COLORS[status?.[bi]?.[i]];
+      if (!fill || bar[i].kind === 'rest') return;
+      ctx.save();
+      ctx.setFillStyle(fill);
+      ctx.fillRect(n.getAbsoluteX() - 6, top, n.getWidth() + 12, hgt);
+      ctx.restore();
+    });
+    voice.draw(ctx, stave);
+    beams.forEach((b) => b.setContext(ctx).draw());
+    // 付点は符尾の先の横に描く（TAB譜の音符には VexFlow の付点が出ないため）
+    tickables.forEach((n, i) => {
+      if (!bar[i].dotted || bar[i].kind === 'rest' || bar[i].dur === 'w') return;
+      const tip = Math.max(n.getStemExtents().topY, n.getStemExtents().baseY);
+      ctx.beginPath();
+      ctx.arc(n.getStemX() + 6, tip - 6, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  });
+  el.querySelectorAll('svg').forEach((svg) => {
+    svg.setAttribute('viewBox', `0 0 ${W} ${SONG_ROW_H}`); svg.removeAttribute('width'); svg.removeAttribute('height'); svg.style.width = `${W}px`;
+  });
+};
+
+// 弾く：選んだところの音を1列に並べ、4拍のカウントのあと本当のリズムの時刻で判定する
+const startSong = () => {
+  const song = songOf(stageIdx);
+  const k = songSecOf(song);
+  if (songSecLocked(k)) { openPay(); return; }
+  const pr = songPractice();
+  const secs = k === SONG_ALL ? song.sections.map((_, j) => j) : [k];
+  let beat0 = 0;
+  const events = secs.flatMap((j) => {
+    const sec = song.sections[j];
+    const evs = sec.bars.flatMap((bar, bi) => bar.map((ev) => ({ ...ev, sec: j, bar: bi, at: beat0 + bi * song.barBeats + ev.beat })));
+    beat0 += sec.bars.length * song.barBeats;
+    return evs;
+  });
+  run = { mode: 'song', stage: stageIdx, play: 'tempo', song, k, secs, events, beatsTotal: beat0, speed: pr.speed, loop: pr.loop,
+    practice: pr.loop || pr.speed < 100, ok: 0, good: 0, total: 0, extra: 0, offs: [], laps: 0, lapMark: { ok: 0, good: 0, total: 0, offs: 0 } };
+  meter.setRange(GOOD_MS, PERFECT_MS);
+  meter.reset();
+  $('lapLine').textContent = pr.loop ? '1回ごとの結果をここに出します（「やめる」で終わります）' : '';
+  setRunningUI(true);
+  beginSongPass();
+};
+const beginSongPass = () => {
+  ensureAudio();
+  const beat = 60 / ((run.song.tempo * run.speed) / 100);
+  run.beatSec = beat;
+  run.beatMs = beat * 1000;
+  run.startCtx = actx.currentTime + 0.3;
+  run.clickN = 4 + run.beatsTotal;
+  run.nextClick = 0;
+  const off = perfOffset();
+  run.countStart = off + run.startCtx * 1000;
+  run.times = run.events.map((ev) => off + (run.startCtx + (4 + ev.at) * beat) * 1000);
+  run.endTime = off + (run.startCtx + (4 + run.beatsTotal) * beat) * 1000;
+  // 音のない出来事（× と休符）は判定しない
+  run.judged = run.events.map((ev) => !ev.notes.length);
+  run.hitAt = [];
+  run.status = [];
+  run.cur = -2;
+  run.countK = null;
+  run.passDone = false;
+  setFeedback('');
+  renderFretboard({});
+  showSongState();
+  run.raf = requestAnimationFrame(songTick);
+};
+const showSongState = () => {
+  const ev = run.events[run.cur];
+  const j = ev ? ev.sec : run.secs[0];
+  const sec = run.song.sections[j];
+  const status = sec.bars.map((b) => b.map(() => ''));
+  run.events.forEach((e, i) => { if (e.sec === j && run.status[i]) status[e.bar][e.ix] = run.status[i]; });
+  renderSongTab(sec, status, ev ? [ev.bar, ev.ix] : null);
+  $('count').innerHTML = `${run.secs.indexOf(j) + 1}<small> / ${run.secs.length}</small>`;
+  const kc = run.countK;
+  $('prompt').innerHTML = `<small>${sec.name}</small>${kc != null ? `<span class="big">${kc + 1}</span>` : ''}`;
+  renderFretboard({ marks: ev ? ev.notes.filter((n) => n.f <= MAX_FRET).map((n) => ({ s: n.s, f: n.f, cls: 'next' })) : [] });
+};
+const songTick = () => {
+  if (!run || run.mode !== 'song' || run.passDone) return;
+  const now = performance.now();
+  // クリックは少し先の分だけ予約する（やめたときに鳴り残らない）
+  while (run.nextClick < run.clickN && run.startCtx + run.nextClick * run.beatSec < actx.currentTime + 0.2) {
+    click(run.startCtx + run.nextClick * run.beatSec, run.nextClick % run.song.barBeats === 0);
+    run.nextClick++;
+  }
+  const k = Math.floor((now - run.countStart) / run.beatMs);
+  const countK = k >= 0 && k < 4 ? k : null;
+  // 時間切れの音はミス
+  let changed = countK !== run.countK;
+  run.countK = countK;
+  run.times.forEach((t, i) => {
+    if (!run.judged[i] && now > t + GOOD_MS + S().latency) {
+      run.judged[i] = true; run.status[i] = 'miss'; run.total++; tickDaily(false); changed = true;
+    }
+  });
+  // いまの音（少し早めに光らせる）
+  let cur = -1;
+  for (let i = 0; i < run.times.length && run.times[i] - 60 <= now; i++) cur = i;
+  if (cur !== run.cur || changed) { run.cur = cur; showSongState(); }
+  const first = run.countStart + 4 * run.beatMs;
+  setProg((now - first) / (run.endTime - first));
+  if (now > run.endTime && run.judged.every(Boolean)) {
+    run.passDone = true;
+    saveStore();
+    renderStats();
+    if (run.loop) {
+      run.laps += 1;
+      lapReport();
+      later(beginSongPass, 500);
+    } else later(finishSong, 600);
+    return;
+  }
+  run.raf = requestAnimationFrame(songTick);
+};
+const songJudge = (inp) => {
+  if (inp.midi == null || !run.times || run.passDone) return;
+  const t = (inp.time ?? performance.now()) - S().latency;
+  const hits = (ev) => ev.notes.some((n) => tabMatches(inp, [n.s, n.f]));
+  // 和音のほかの弦の音（同じストロークで少し遅れて届く）は、余分な音に数えない
+  if (run.events.some((ev, i) => run.hitAt[i] != null && ev.notes.length > 1 && Math.abs(t - run.hitAt[i]) <= STRUM_MS && hits(ev))) return;
+  let best = -1;
+  let bestD = Infinity;
+  run.times.forEach((nt, i) => {
+    const d = t - nt;
+    if (!run.judged[i] && Math.abs(d) <= GOOD_MS && hits(run.events[i]) && Math.abs(d) < Math.abs(bestD)) { best = i; bestD = d; }
+  });
+  if (best < 0) {
+    run.extra++;
+    setFeedback(`✗ 余分な音 ${noteLabel(inp.midi)}${inp.s != null ? `（${inp.s}弦${inp.f}F）` : ''}`, 'ng');
+    return;
+  }
+  run.judged[best] = true;
+  run.hitAt[best] = t;
+  run.total++;
+  const perfect = Math.abs(bestD) <= PERFECT_MS;
+  run.status[best] = perfect ? 'ok' : bestD < 0 ? 'early' : 'late';
+  run.offs.push(bestD);
+  meter.push(bestD);
+  if (perfect) run.ok++; else run.good++;
+  tickDaily(true);
+  const lag = Math.round(bestD);
+  popJudge(perfect ? 'Perfect' : 'Good', perfect ? 'perfect' : 'good', Timing.label(lag));
+  setFeedback(`${perfect ? 'Perfect' : 'Good'}　${Timing.label(lag)}`, perfect ? 'ok' : 'good');
+  showSongState();
+};
+const finishSong = () => {
+  const r = run;
+  stopRun(false);
+  if (!r || !r.total) return;
+  const hits = r.ok + r.good;
+  const rate = hits / r.total;
+  const st = Timing.stats(r.offs);
+  const name = songSecName(r.song, r.k);
+  const line1 = `${name}　合った音 ${hits} / ${r.total}（${Math.round(rate * 100)}%・Perfect ${r.ok}・Good ${r.good}）`;
+  const line2 = `余分な音 ${r.extra}・テンポ ${Math.round((r.song.tempo * r.speed) / 100)}${st.n ? `・平均のずれ ${Timing.signed(st.mean)}（${Timing.tendency(st.mean)}）${st.sd !== null ? `・ばらつき ±${Math.round(st.sd)}ms` : ''}` : ''}`;
+  if (r.practice) {
+    const how = [r.speed < 100 ? `速さ ${r.speed}%` : '', r.loop ? '繰り返し' : ''].filter(Boolean).join('・');
+    showResult(null, `${r.laps ? `${r.laps}回くり返して ` : ''}${line1}`, `${line2}。練習モード（${how}）の回は、★の記録には入りません`);
+    return;
+  }
+  const score = (r.ok + r.good * 0.7) / r.total - r.extra * 0.02;
+  const stars = rate < 0.85 ? 0 : score >= 0.98 ? 3 : score >= 0.92 ? 2 : 1;
+  const isBest = saveBest(songBestKey(r.song, r.k), { stars, rate });
+  showResult(stars, line1, `${line2}${!stars ? '　クリアには85%以上' : ''}`, isBest);
+};
+// 結果の「次のセクションへ」（有料のセクションなら案内）
+const songNextButton = (stars, mk) => {
+  const song = songOf(stageIdx);
+  const k = songSecOf(song);
+  if (!stars || k === SONG_ALL || k >= song.sections.length - 1) return;
+  if (songSecLocked(k + 1)) { mk('次のセクションへ（有料版）', 'gold', () => openPay()); return; }
+  mk(`次へ：${song.sections[k + 1].name} →`, 'gold', () => { S().songSec = k + 1; saveStore(); renderSongInfo(); startRun(); });
+};
+// お手本：選んだところを、選んだ速さで鳴らす（重なった音は低い弦から少しずつずらす）
+const playSongDemo = () => {
+  if (run) return;
+  ensureAudio();
+  clearTimers();
+  const song = songOf(stageIdx);
+  const k = songSecOf(song);
+  if (songSecLocked(k)) { openPay(); return; }
+  const beat = 60 / ((song.tempo * songPractice().speed) / 100);
+  const secs = k === SONG_ALL ? song.sections.map((_, j) => j) : [k];
+  const t0 = actx.currentTime + 0.15;
+  let beat0 = 0;
+  secs.forEach((j) => {
+    const sec = song.sections[j];
+    sec.bars.forEach((bar, bi) => bar.forEach((ev) => {
+      if (!ev.notes.length) return;
+      const when = t0 + (beat0 + bi * song.barBeats + ev.beat) * beat;
+      const gain = ev.notes.some((n) => n.tech.includes('m')) ? 0.55 : 0.9;
+      const notes = [...ev.notes].sort((a, b) => b.s - a.s);
+      // 先の音は、鳴らす少し前に予約する（「やめる」やスタートで止められるように）
+      later(() => notes.forEach((n, x) => pluck(OPEN[n.s] + n.f, when + x * 0.012, gain / Math.sqrt(notes.length))), Math.max(0, (when - actx.currentTime) * 1000 - 120));
+    }));
+    beat0 += sec.bars.length * song.barBeats;
+  });
+};
+
 // ---- 開始・停止 ----
 const startRun = () => {
   ensureAudio();
   stopRun(false);
   $('result').hidden = true;
   if (mode === 'tab') startTab();
+  else if (mode === 'song') startSong();
   else startFlash();
 };
 const stopRun = (showIdle = true) => {
@@ -1858,7 +2281,8 @@ document.addEventListener('click', (e) => {
     openPay();
   } else if (t.dataset.play) {
     const [m, i] = t.dataset.play.split(':');
-    openPlay(m, Number(i));
+    if (m === 'song') openSong(Number(i));
+    else openPlay(m, Number(i));
   } else if (t.dataset.open) {
     $(t.dataset.open).showModal();
   } else if (t.dataset.gotoView) {
@@ -1896,7 +2320,8 @@ const onPlayed = (inp) => {
     if (inp.s != null && inp.f <= MAX_FRET) renderFretboard({ ...fbState, marks: [{ s: inp.s, f: inp.f, cls: 'played', label: pcName(inp.midi % 12) }] });
     return;
   }
-  if (run.mode === 'tab') {
+  if (run.mode === 'song') songJudge(inp);
+  else if (run.mode === 'tab') {
     if (run.play === 'tempo') tabTempoJudge(inp);
     else tabOrderJudge(inp);
   } else if (run.mode !== 'fret') flashJudge(inp);
@@ -1995,10 +2420,12 @@ $('tabPlaySeg').addEventListener('click', (e) => {
   renderStageInfo();
 });
 $('startBtn').addEventListener('click', startRun);
-$('stopBtn').addEventListener('click', () => (run?.loop && run.total ? finishTab() : stopRun()));
+$('stopBtn').addEventListener('click', () => {
+  if (run?.loop && run.total) { if (run.mode === 'song') finishSong(); else finishTab(); } else stopRun();
+});
 document.addEventListener('click', (e) => { if (e.target instanceof Element && e.target.closest('[data-assess]')) startAssess(); });
 $('skipBtn').addEventListener('click', skipQuestion);
-$('demoBtn').addEventListener('click', playDemo);
+$('demoBtn').addEventListener('click', () => (mode === 'song' ? playSongDemo() : playDemo()));
 const setBpm = (v) => {
   const n = Math.max(30, Math.min(200, Math.round(Number(v) || 70)));
   S().bpm = n;
