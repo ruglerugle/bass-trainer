@@ -441,6 +441,8 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
 @media (prefers-reduced-motion: reduce) {
   .judge, .stars span.on, .result .best, .node.next .dot, .result, dialog.sheet-dlg[open], .fb .mark.target.pulse circle { animation: none; }
 }
+.lap-line { min-height: 1.3em; text-align: center; font-size: .86rem; color: var(--gold); letter-spacing: .04em; }
+#practiceBar { margin-top: 2px; }
 </style>
 <link rel="stylesheet" href="studio.css?v=1">
 </head>
@@ -528,6 +530,7 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
             <span>BPM</span>
           </div>
         </div>
+        <div id="practiceBar" data-modes="tab"></div>
         <div class="controls">
           <button id="startBtn" class="gold big" type="button">▶ スタート</button>
         </div>
@@ -538,6 +541,8 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
       <div class="fb-box"><div class="fb-wrap"><div id="fretboard"></div></div></div>
       <div id="noteBtns" class="note-btns" data-modes="fret" role="group" aria-label="音名で答える"></div>
       <div id="feedback" class="feedback" aria-live="polite"></div>
+      <div id="lapLine" class="lap-line" data-modes="tab" aria-live="polite"></div>
+      <div id="tmeter" data-modes="tab" aria-hidden="true"></div>
       <div class="controls">
         <button id="skipBtn" class="ghost" type="button" hidden>答えを見る</button>
         <button id="stopBtn" class="ghost" type="button" hidden>■ やめる</button>
@@ -713,6 +718,7 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
 </dialog>
 
 <script src="billing.js?v=1"></script>
+<script src="timing.js?v=1"></script>
 <script>
 'use strict';
 const VF = Vex.Flow;
@@ -721,7 +727,9 @@ const $ = (id) => document.getElementById(id);
 // ---- 記録 ----
 const STORE_KEY = 'bassTrainer_v1';
 const defaultStore = () => ({
-  settings: { chan: 'asc', strictString: true, octaveFree: false, minVel: 8, latency: 0, names: 'cde', lefty: false, midiSound: false, vol: 0.7, tabPlay: 'order', bpm: 70, goal: 50 },
+  settings: { chan: 'asc', strictString: true, octaveFree: false, minVel: 8, latency: 0, names: 'cde', lefty: false, midiSound: false, vol: 0.7, tabPlay: 'order', bpm: 70, goal: 50,
+    // 練習モード（TAB譜）：選んだフレーズを止めるまで繰り返す
+    practice: { loop: false, from: 0, to: 0 } },
   stats: {}, best: {}, daily: { last: '', streak: 0, today: 0 }, total: { n: 0, ok: 0 }, last: { mode: 'fret', stage: 0 },
 });
 const loadStore = () => {
@@ -1076,7 +1084,7 @@ const renderTab = (notes, status, cur) => {
   new VF.Formatter().joinVoices([voice]).format([voice], w - 90);
   const top = stave.getYForLine(0) - 10;
   const hgt = stave.getYForLine(3) - stave.getYForLine(0) + 20;
-  const COLORS = { ok: 'rgba(46,139,87,.22)', good: 'rgba(217,162,27,.28)', miss: 'rgba(200,67,58,.22)' };
+  const COLORS = { ok: 'rgba(46,139,87,.22)', good: 'rgba(217,162,27,.28)', early: 'rgba(47,111,184,.26)', late: 'rgba(217,112,28,.28)', miss: 'rgba(200,67,58,.22)' };
   tn.forEach((n, i) => {
     const fill = i === cur ? 'rgba(19,138,114,.26)' : COLORS[status[i]];
     if (!fill) return;
@@ -1214,6 +1222,7 @@ const renderHome = () => {
     + '<button type="button" class="tile" data-open="helpDlg"><span class="ic" style="background:#e8eef6">📖</span><span><b>ベースの楽譜の見方</b><small>弦の番号・フレット・ヘ音記号・TAB譜</small></span></button>';
 };
 const renderStageInfo = () => {
+  renderPractice();
   const st = stageOf();
   if (!st) {
     $('stageInfo').innerHTML = `<b>自由練習・${MODE_INFO[mode].name}</b>${mode === 'tab'
@@ -1487,11 +1496,59 @@ const showResult = (stars, line1, line2, isBest = false) => {
   el.appendChild(row);
 };
 
+// ---- 練習モード（TAB譜：フレーズの繰り返し）と、早い・遅いの帯 ----
+const tabPractice = () => ({ loop: false, from: 0, to: 0, ...(S().practice || {}) });
+const meter = Timing.meter($('tmeter'), { good: 150, perfect: 70 });
+let practiceUI = null;
+const renderPractice = () => {
+  if (mode !== 'tab') return;
+  const st = stageOf();
+  const phrases = st ? st.phrases : [];
+  const pr = tabPractice();
+  const last = Math.max(0, phrases.length - 1);
+  pr.from = Math.min(pr.from, last);
+  pr.to = Math.min(Math.max(pr.to, pr.from), last);
+  S().practice = pr;
+  const opts = {
+    speed: false, wait: false, loop: phrases.length > 0, state: pr,
+    ranges: phrases.map((ph, i) => ({ value: i, label: ph.name })),
+    note: (x) => (x.loop ? '選んだフレーズを「やめる」まで繰り返します。1回ごとに結果を出し、記録には入りません。正しく弾くまで待つ練習は「順番に弾く」です' : ''),
+    onChange: (x) => { S().practice = { ...S().practice, ...x }; saveStore(); },
+  };
+  if (!practiceUI) practiceUI = Timing.practiceBar($('practiceBar'), opts);
+  else { practiceUI.update(opts); practiceUI.set(pr); }
+};
+const lapReport = () => {
+  const m = run.lapMark;
+  const ok = run.ok - m.ok;
+  const good = run.good - m.good;
+  const total = run.total - m.total;
+  const st = Timing.stats(run.offs.slice(m.offs));
+  run.lapMark = { ok: run.ok, good: run.good, total: run.total, offs: run.offs.length };
+  $('lapLine').textContent = `${run.laps}回目：${run.play === 'tempo' ? `合った音 ${ok + good} / ${total}${st.n ? `・平均のずれ ${Timing.signed(st.mean)}（${Timing.tendency(st.mean)}）` : ''}` : `1回で弾けた音 ${ok} / ${total}`}`;
+};
+const nextPhrase = () => {
+  run.pi++;
+  if (run.pi < run.phrases.length) { beginPhrase(); return; }
+  if (!run.loop) { finishTab(); return; }
+  run.laps += 1;
+  lapReport();
+  run.pi = 0;
+  beginPhrase();
+};
+
 // ---- TAB譜 ----
 const shuffle = (a) => { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
 const startTab = () => {
-  const phrases = stageIdx === FREE ? shuffle(TAB_STAGES.flatMap((s, i) => (isLockedStage('tab', i) ? [] : s.phrases))).slice(0, 4) : stageOf().phrases;
-  run = { mode: 'tab', stage: stageIdx, play: S().tabPlay, phrases, pi: 0, ni: 0, status: [], missedNote: false, ok: 0, good: 0, total: 0, extra: 0, t0: performance.now() };
+  const all = stageIdx === FREE ? shuffle(TAB_STAGES.flatMap((s, i) => (isLockedStage('tab', i) ? [] : s.phrases))).slice(0, 4) : stageOf().phrases;
+  const pr = tabPractice();
+  const loop = stageIdx !== FREE && pr.loop && all.length > 0;
+  const phrases = loop ? all.slice(Math.min(pr.from, all.length - 1), Math.min(Math.max(pr.to, pr.from), all.length - 1) + 1) : all;
+  run = { mode: 'tab', stage: stageIdx, play: S().tabPlay, phrases, pi: 0, ni: 0, status: [], missedNote: false, ok: 0, good: 0, total: 0, extra: 0, t0: performance.now(),
+    loop, practice: loop, laps: 0, offs: [], lapMark: { ok: 0, good: 0, total: 0, offs: 0 } };
+  meter.setRange(GOOD_MS, PERFECT_MS);
+  meter.reset();
+  $('lapLine').textContent = loop ? '1回ごとの結果をここに出します（「やめる」で終わります）' : '';
   setRunningUI(true);
   beginPhrase();
 };
@@ -1536,7 +1593,7 @@ const tabOrderJudge = (inp) => {
       showTabState();
       saveStore();
       renderStats();
-      later(() => { run.locked = false; run.pi++; if (run.pi >= run.phrases.length) finishTab(); else beginPhrase(); }, 700);
+      later(() => { run.locked = false; nextPhrase(); }, 700);
     } else showTabState();
   } else {
     run.missedNote = true;
@@ -1599,7 +1656,7 @@ const tempoTick = () => {
   if (run.judged.every(Boolean)) {
     saveStore();
     renderStats();
-    later(() => { run.pi++; if (run.pi >= run.phrases.length) finishTab(); else beginPhrase(); }, 600);
+    later(() => nextPhrase(), 600);
     return;
   }
   run.raf = requestAnimationFrame(tempoTick);
@@ -1622,12 +1679,14 @@ const tabTempoJudge = (inp) => {
   run.judged[best] = true;
   run.total++;
   const perfect = Math.abs(bestD) <= PERFECT_MS;
-  run.status[best] = perfect ? 'ok' : 'good';
+  run.status[best] = perfect ? 'ok' : bestD < 0 ? 'early' : 'late';
+  run.offs.push(bestD);
+  meter.push(bestD);
   if (perfect) run.ok++; else run.good++;
   tickDaily(true);
   const lag = Math.round(bestD);
-  popJudge(perfect ? 'Perfect' : 'Good', perfect ? 'perfect' : 'good', lag > 0 ? `${lag}ms 遅い` : lag < 0 ? `${-lag}ms 早い` : 'ぴったり');
-  setFeedback(`${perfect ? 'Perfect' : 'Good'}　${lag > 0 ? `${lag}ms 遅い` : lag < 0 ? `${-lag}ms 早い` : 'ぴったり'}`, perfect ? 'ok' : 'good');
+  popJudge(perfect ? 'Perfect' : 'Good', perfect ? 'perfect' : 'good', Timing.label(lag));
+  setFeedback(`${perfect ? 'Perfect' : 'Good'}　${Timing.label(lag)}`, perfect ? 'ok' : 'good');
 };
 const finishTab = () => {
   const r = run;
@@ -1639,12 +1698,14 @@ const finishTab = () => {
   let line2;
   if (r.play === 'tempo') {
     line1 = `合った音 ${hits} / ${r.total}（Perfect ${r.ok}・Good ${r.good}）`;
-    line2 = `余分な音 ${r.extra}・テンポ ${S().bpm}`;
+    const st = Timing.stats(r.offs);
+    line2 = `余分な音 ${r.extra}・テンポ ${S().bpm}${st.n ? `・平均のずれ ${Timing.signed(st.mean)}（${Timing.tendency(st.mean)}）${st.sd !== null ? `・ばらつき ±${Math.round(st.sd)}ms` : ''}` : ''}`;
   } else {
     line1 = `1回で弾けた音 ${r.ok} / ${r.total}（${Math.round(rate * 100)}%）`;
     line2 = `かかった時間 ${((performance.now() - r.t0) / 1000).toFixed(0)}秒`;
   }
   if (r.stage === FREE) { showResult(null, line1, line2); return; }
+  if (r.practice) { showResult(null, `${r.laps ? `${r.laps}回くり返して ` : ""}${line1}`, `${line2}・練習モード（繰り返し）の回は記録しません`); return; }
   const score = r.play === 'tempo' ? (r.ok + r.good * 0.7) / r.total - r.extra * 0.02 : rate;
   const stars = rate < 0.85 ? 0 : score >= 0.98 ? 3 : score >= 0.92 ? 2 : 1;
   const isBest = saveBest(bestKey('tab', r.stage, `:${r.play}`), { stars, rate });
@@ -1861,7 +1922,7 @@ $('tabPlaySeg').addEventListener('click', (e) => {
   renderStageInfo();
 });
 $('startBtn').addEventListener('click', startRun);
-$('stopBtn').addEventListener('click', () => stopRun());
+$('stopBtn').addEventListener('click', () => (run?.loop && run.total ? finishTab() : stopRun()));
 $('skipBtn').addEventListener('click', skipQuestion);
 $('demoBtn').addEventListener('click', playDemo);
 const setBpm = (v) => {
