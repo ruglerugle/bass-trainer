@@ -1,0 +1,259 @@
+/* ==========================================================================
+   スタジオ（漆黒×真鍮）— 楽器トレーナー共通の見た目
+   各アプリの index.html の <style> のあとで読み込み、色の変数と部品の形を上書きする。
+   アプリごとの色は <html data-app="…"> で選ぶ。5つのアプリで同じファイルを使う（直したら全部にコピー）
+   ========================================================================== */
+:root {
+  --gold: #c9a96e;
+  --gold-dark: #8c6b37;
+  --gold-grad: linear-gradient(135deg, #e6cd97 0%, #c9a96e 45%, #a5844f 100%);
+  --bg: #0e0e10;
+  --paper: #17171b;
+  --panel2: #1f1f24;
+  --ink: #ece8e1;
+  --muted: #8f8b85;
+  --line: #2b2b31;
+  --ok: #5cc28a;
+  --ng: #e2706f;
+  --play-bg: #0b0b0d;
+  --play-panel: #17171b;
+  --play-ink: #ece8e1;
+  --play-muted: #8f8b85;
+  --radius: 18px;
+  --shadow: 0 0 0 1px var(--line) inset;
+  /* アプリの色（tone: 深い色、accent: 黒の上で読める明るさ） */
+  --tone: #8e3b6a;
+  --accent: #d77fae;
+  --accent-dark: var(--tone);
+  --accent-bright: var(--accent);
+  --accent-soft: rgba(255, 255, 255, .05);
+  color-scheme: dark;
+}
+html[data-app="piano"] { --tone: #3d4f86; --accent: #93a6e3; }
+html[data-app="guitar"] { --tone: #8e2f3a; --accent: #de8f97; }
+html[data-app="bass"] { --tone: #2f6b55; --accent: #7fc6a7; }
+html[data-app="drum"] { --tone: #a5552a; --accent: #e3a072; }
+html[data-app="vocal"] { --tone: #8e3b6a; --accent: #d77fae; }
+
+body {
+  font-family: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif !important;
+  font-weight: 400; letter-spacing: .02em; background: var(--bg); color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { font-weight: 400; letter-spacing: .04em; }
+b, strong { font-weight: 500; }
+::selection { background: rgba(201, 169, 110, .35); }
+
+/* ---- ボタン：沈む立体をやめ、平らな面と細い枠に ---- */
+button {
+  font-weight: 500; letter-spacing: .08em; border-radius: 999px; box-shadow: none;
+  background: var(--gold-grad); color: #17130b; transition: filter .15s, background .15s, transform .06s;
+}
+button:hover:not(:disabled) { background: var(--gold-grad); filter: brightness(1.08); }
+button:active:not(:disabled) { transform: translateY(1px); box-shadow: none; }
+button.ghost, .play button.ghost, .play button.dark, .play .result button.ghost {
+  background: transparent; color: var(--ink); box-shadow: 0 0 0 1px var(--line) inset;
+}
+button.ghost:hover:not(:disabled), .play button.ghost:hover:not(:disabled), .play .result button.ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, .05); filter: none;
+}
+button.ghost:active:not(:disabled) { box-shadow: 0 0 0 1px var(--line) inset; }
+button.gold { background: var(--gold-grad); color: #17130b; box-shadow: none; }
+button.gold:hover:not(:disabled) { background: var(--gold-grad); }
+button.icon { background: var(--panel2); color: var(--muted); box-shadow: 0 0 0 1px var(--line) inset; }
+button.link { background: none; color: var(--gold); font-weight: 400; text-decoration: none; border-bottom: 1px solid rgba(201, 169, 110, .4); border-radius: 0; letter-spacing: .04em; }
+button.link:hover:not(:disabled) { background: none; filter: none; color: #e6cd97; }
+button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--gold); }
+a { color: var(--gold); }
+select, input[type="number"], input[type="text"], input[type="email"], input:not([type]) {
+  background: var(--panel2); color: var(--ink); border: 1px solid var(--line); border-radius: 10px;
+}
+input[type="range"], .check input { accent-color: var(--gold); }
+
+/* ---- 上のバー・タブ ---- */
+.topbar { background: rgba(14, 14, 16, .86); border-bottom: 1px solid var(--line); }
+.brand b { font-weight: 500; letter-spacing: .12em; }
+.brand small { letter-spacing: .3em; font-weight: 400; color: var(--muted); }
+.brand svg { filter: grayscale(1) sepia(.8) saturate(1.6) brightness(.95); }
+.mic-status { background: transparent; color: var(--muted); box-shadow: 0 0 0 1px var(--line) inset; font-weight: 400; letter-spacing: .06em; }
+.mic-status:hover:not(:disabled) { background: rgba(255, 255, 255, .05); filter: none; }
+.tabs { background: var(--bg) !important; }
+.tabs button { background: none; color: var(--muted); font-weight: 400; letter-spacing: .12em; }
+.tabs button:hover:not(:disabled) { background: rgba(255, 255, 255, .04); filter: none; }
+.tabs button[aria-current="page"] { color: var(--gold); }
+@media (max-width: 899px) { .tabs { box-shadow: 0 -1px 0 var(--line); background: rgba(14, 14, 16, .94) !important; } }
+@media (min-width: 900px) { .tabs { box-shadow: 1px 0 0 var(--line); } }
+
+/* ---- カード・見出し ---- */
+.card { background: var(--paper); box-shadow: 0 0 0 1px var(--line) inset; }
+.section-title h2, .page > h1 { font-weight: 300; letter-spacing: .08em; }
+.section-title h2 { font-size: 1.05rem; color: var(--ink); }
+.section-title span { color: var(--muted); }
+.hello h1 { font-weight: 300; font-size: 1.9rem; letter-spacing: .06em; }
+.hello p { color: var(--muted); }
+footer, footer a { color: var(--muted); }
+
+/* 続きからのカード：アプリの色をにじませた黒の面 */
+.continue {
+  background: radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--tone) 75%, transparent) 0%, transparent 62%), var(--paper) !important;
+  box-shadow: 0 0 0 1px var(--line) inset !important; color: var(--ink);
+}
+.continue .kicker { color: var(--gold); letter-spacing: .28em; font-weight: 400; opacity: 1; }
+.continue h2 { font-weight: 400; letter-spacing: .06em; }
+.continue p { color: var(--muted); opacity: 1; }
+.continue .stars-line { color: var(--gold); }
+.continue button.big, .continue button { background: var(--gold-grad) !important; color: #17130b !important; box-shadow: none !important; }
+.continue .chara-hero { opacity: .9; filter: grayscale(.15) drop-shadow(0 8px 14px rgba(0, 0, 0, .5)); }
+
+/* 今日の目標 */
+.ring .track { stroke: var(--line); }
+.ring .fill { stroke: var(--gold); stroke-width: 5; }
+.ring.met .fill { stroke: #e6cd97; }
+.ring b { font-weight: 300; font-size: 1.6rem; }
+.mini, .stat { background: var(--panel2); }
+.mini b, .stat b { font-weight: 300; font-size: 1.5rem; }
+.mini span, .stat span { letter-spacing: .1em; }
+.mini .gold { color: var(--gold); }
+.voice-row, .monitor { background: var(--panel2); color: var(--ink); }
+
+/* ---- ステージの道 ---- */
+.lane-head .ic, .tile .ic {
+  background: var(--panel2) !important; box-shadow: 0 0 0 1px rgba(201, 169, 110, .35) inset; filter: grayscale(1) sepia(.75) saturate(1.3) brightness(1.05);
+}
+.lane h3, .lane-head h3 { font-weight: 500; letter-spacing: .08em; }
+.lane-head .cnt { color: var(--gold); font-weight: 400; letter-spacing: .08em; }
+.node { color: var(--ink); font-weight: 400; }
+.node:hover:not(:disabled) { background: rgba(255, 255, 255, .04); filter: none; }
+.node:not(:last-child)::after { width: 1px; left: 34px; background: var(--line); }
+.node.done:not(:last-child)::after { background: var(--gold-dark); }
+.dot, .node .dot { width: 44px; height: 44px; font-size: .95rem; font-weight: 400; background: transparent; color: var(--muted); box-shadow: 0 0 0 1px var(--line) inset; margin: 4px; }
+.node.done .dot { background: transparent; color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
+.node.next .dot { background: var(--gold-grad); color: #17130b; box-shadow: 0 0 0 6px rgba(201, 169, 110, .12); animation: studioPulse 2.4s infinite; }
+.node.later .dot, .node.locked .dot { background: transparent; color: #5c5a57; box-shadow: 0 0 0 1px var(--line) inset; }
+.node .nm { font-weight: 500; letter-spacing: .04em; }
+.node.later .nm, .node.locked .nm { color: #a9a49d; }
+.node .st { color: var(--gold); }
+.node .st.none { color: #3a3a40; }
+.node .tag { background: transparent; color: var(--gold); box-shadow: 0 0 0 1px rgba(201, 169, 110, .4) inset; font-weight: 400; letter-spacing: .08em; }
+@keyframes studioPulse { 0%, 100% { box-shadow: 0 0 0 6px rgba(201, 169, 110, .14); } 50% { box-shadow: 0 0 0 11px rgba(201, 169, 110, .04); } }
+.tile { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 1px var(--line) inset; border-radius: 16px; }
+.tile:hover:not(:disabled) { background: var(--panel2); filter: none; }
+.tile:active:not(:disabled) { box-shadow: 0 0 0 1px var(--line) inset; }
+.tile b { font-weight: 500; letter-spacing: .04em; }
+.premium {
+  background: radial-gradient(120% 160% at 0% 0%, rgba(201, 169, 110, .18), transparent 55%), var(--paper) !important;
+  box-shadow: 0 0 0 1px rgba(201, 169, 110, .35) inset !important; color: var(--ink);
+}
+.premium h2 { font-weight: 400; letter-spacing: .06em; }
+.premium h2 em { color: var(--gold); }
+.premium p { color: var(--muted); opacity: 1; }
+.bar { background: var(--panel2); }
+.bar i { background: var(--gold); }
+.siblings { background: var(--paper) !important; box-shadow: 0 0 0 1px var(--line) inset !important; color: var(--ink) !important; }
+.siblings a { background: transparent !important; color: var(--ink) !important; box-shadow: 0 0 0 1px var(--line) inset !important; }
+
+/* ---- 練習の画面 ---- */
+.intro, .meter { background: var(--play-panel); box-shadow: 0 0 0 1px var(--line) inset; }
+.stage-info .rule { color: var(--gold); background: transparent; box-shadow: 0 0 0 1px rgba(201, 169, 110, .3) inset; font-weight: 400; letter-spacing: .06em; }
+.prog { height: 4px; background: var(--line); }
+.prog i { background: var(--gold-grad); }
+.prompt .big { color: var(--ink); font-weight: 300; letter-spacing: .06em; }
+.cue { font-weight: 400; letter-spacing: .12em; }
+.cue.listen { background: transparent; color: var(--gold); box-shadow: 0 0 0 1px rgba(201, 169, 110, .35) inset; }
+.cue.sing { background: transparent; color: var(--accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent) inset; }
+.sheet { background: #f4efe5; box-shadow: 0 0 0 1px var(--line), 0 18px 40px rgba(0, 0, 0, .5); border-radius: 14px; }
+.read b { font-weight: 300; }
+.trail-box { background: #08080a; box-shadow: 0 0 0 1px var(--line) inset; }
+.needle-track { height: 8px; background: linear-gradient(90deg, #3a1d1d, #3b3524 38%, rgba(201, 169, 110, .9) 50%, #3b3524 62%, #3a1d1d); }
+#needle { top: -6px; bottom: -6px; width: 3px; margin-left: -1.5px; box-shadow: 0 0 12px rgba(201, 169, 110, .8); }
+.judge span { background: rgba(23, 23, 27, .9); color: var(--ink); }
+.judge.perfect b { color: #e6cd97; }
+.result { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 1px var(--line) inset, 0 24px 60px rgba(0, 0, 0, .6); }
+.result h2 { font-weight: 400; letter-spacing: .08em; }
+.stars span { color: #2f2f35; }
+.stars span.on { color: var(--gold); text-shadow: none; }
+.result .best { background: transparent; color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; font-weight: 400; }
+
+/* ---- 下から出る画面・ダイアログ ---- */
+dialog.sheet-dlg { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 1px var(--line), 0 30px 80px rgba(0, 0, 0, .7); }
+dialog.sheet-dlg::backdrop { background: rgba(0, 0, 0, .65); }
+.dlg-head h2 { font-weight: 400; letter-spacing: .08em; }
+.voices button { background: var(--panel2); color: var(--ink); box-shadow: 0 0 0 1px var(--line) inset; border-radius: 14px; }
+.voices button:hover:not(:disabled) { background: var(--panel2); filter: brightness(1.15); }
+.voices button[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--gold) inset; }
+.rg-live { color: var(--gold); font-weight: 300; }
+.rg-vals div { background: var(--panel2); }
+.rg-vals div.cur { box-shadow: 0 0 0 1px var(--gold) inset; }
+.acct-code { background: var(--panel2); color: var(--gold); }
+.level { background: var(--line); }
+.level i { background: var(--gold); }
+.help td, .help th { border-color: var(--line); }
+.toast { background: var(--panel2); color: var(--ink); box-shadow: 0 0 0 1px var(--line) inset, 0 8px 24px rgba(0, 0, 0, .5); font-weight: 400; }
+
+/* ---- 有料版の印：錠前の絵文字をやめ、真鍮の細い文字に ---- */
+.tile.locked b::after { content: "PREMIUM"; display: inline-block; margin-left: 8px; padding: 0 7px; font-size: .6rem; font-weight: 400; letter-spacing: .2em; vertical-align: 2px; color: var(--gold); box-shadow: 0 0 0 1px rgba(201, 169, 110, .45) inset; border-radius: 999px; }
+.node.locked .dot { filter: grayscale(1) brightness(.8); font-size: .8rem; }
+
+/* ---- 曲のカード・バッジ・はじめての案内・お支払い（読譜・ギター・ベース・ドラムで使う部品） ---- */
+.song-card { background: var(--paper); box-shadow: 0 0 0 1px var(--line) inset; }
+.song-card:hover:not(:disabled) { background: var(--panel2); box-shadow: 0 0 0 1px rgba(201, 169, 110, .35) inset, 0 14px 30px rgba(0, 0, 0, .5); filter: none; }
+.cover { filter: saturate(.45) brightness(.72) contrast(1.05); }
+.song-card:hover .cover { filter: saturate(.6) brightness(.82); }
+.cover .tag { background: rgba(14, 14, 16, .78) !important; color: var(--ink) !important; font-weight: 400; letter-spacing: .1em; }
+.cover .tag.free { color: var(--ok) !important; }
+.cover .tag.lock { color: var(--gold) !important; }
+.diff i { background: var(--line); }
+.diff i.on { background: var(--gold); }
+.badge { font-weight: 400; }
+.badge i { background: var(--panel2) !important; box-shadow: 0 0 0 1px var(--line) inset !important; color: var(--muted); }
+.badge.got i { background: var(--gold-grad) !important; box-shadow: none !important; color: #17130b; }
+.cta { background: transparent !important; color: var(--ink) !important; box-shadow: 0 0 0 1px rgba(201, 169, 110, .4) inset; }
+.seg { background: var(--panel2); }
+.seg button { background: transparent; color: var(--muted); }
+.seg button:hover:not(:disabled) { background: rgba(255, 255, 255, .05); }
+.seg button[aria-pressed="true"] { background: var(--paper); color: var(--gold); box-shadow: 0 0 0 1px var(--line) inset; }
+.pay-hero { background: radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--tone) 80%, transparent), transparent 65%), var(--panel2) !important; color: var(--ink) !important; }
+.pay-hero .crown { filter: grayscale(1) sepia(.8) saturate(1.6); }
+.benefits li::before { background: transparent !important; color: var(--gold) !important; box-shadow: 0 0 0 1px rgba(201, 169, 110, .5) inset; font-weight: 400; }
+.price-card { background: rgba(201, 169, 110, .06) !important; box-shadow: 0 0 0 1px var(--gold) inset !important; }
+.price-card b { font-weight: 300; }
+.choice { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 1px var(--line) inset; }
+.choice:hover:not(:disabled) { background: var(--panel2); filter: none; }
+.choice:active:not(:disabled) { box-shadow: 0 0 0 1px var(--line) inset; }
+.choice .ic { filter: grayscale(1) sepia(.75) saturate(1.3) brightness(1.05); }
+.ob-dots i { background: var(--line); }
+.ob-dots i.on { background: var(--gold); }
+.ob-step h2 { font-weight: 400; letter-spacing: .06em; }
+.kb-nav-win { border-color: var(--gold) !important; }
+.midi-status { background: transparent; color: var(--muted); box-shadow: 0 0 0 1px var(--line) inset; font-weight: 400; letter-spacing: .06em; }
+/* 鍵盤：象牙と黒檀 */
+.kb-box, .kb-wrap { background: #08080a !important; box-shadow: 0 0 0 1px var(--line) inset !important; }
+.key.white { background: linear-gradient(#e9e3d6, #f6f1e7 30%) !important; box-shadow: inset 0 -4px 0 #d6cdbb, inset -1px 0 0 #b8ae9a !important; }
+.key.black { background: linear-gradient(#1c1c1f, #2c2c31) !important; box-shadow: inset 0 -3px 0 #050506, 0 2px 3px rgba(0, 0, 0, .5) !important; }
+.key.c-label::after { color: #9b927f; }
+.key.ok { background: #5cc28a !important; }
+.key.ng { background: var(--ng) !important; }
+.key.hint { background: var(--gold) !important; }
+.kb-nav { background: #111114 !important; }
+.node .paid { background: transparent !important; color: var(--gold) !important; box-shadow: 0 0 0 1px rgba(201, 169, 110, .45) inset; font-weight: 400; letter-spacing: .1em; }
+.fb-box { background: #08080a !important; box-shadow: 0 0 0 1px var(--line) inset, 0 18px 40px rgba(0, 0, 0, .4) !important; }
+
+/* ---- ドラム：黒い打面にニッケルのリム、真鍮のシンバル ---- */
+.score-wrap { background: #f4efe5 !important; box-shadow: 0 0 0 1px var(--line), 0 18px 40px rgba(0, 0, 0, .5) !important; border-radius: 14px !important; }
+.pads { background: radial-gradient(ellipse at 50% 115%, #24242a 0%, #0b0b0d 72%) !important; box-shadow: 0 0 0 1px var(--line) inset !important; }
+button.pad {
+  border: 2px solid #8d877d !important; color: var(--ink) !important; font-weight: 500 !important; letter-spacing: .04em;
+  background: radial-gradient(circle at 50% 38%, #2c2c32 0 55%, #1a1a1e 100%) !important;
+  box-shadow: 0 0 0 4px #121215, 0 0 0 5px #3a3833, 0 8px 18px rgba(0, 0, 0, .55) !important; filter: none;
+}
+button.pad:hover:not(:disabled) { background: radial-gradient(circle at 50% 38%, #34343b 0 55%, #1f1f24 100%) !important; filter: none; }
+button.pad.cym {
+  border-color: #6b5326 !important; color: #1c150a !important;
+  background: repeating-radial-gradient(circle at 50% 50%, #c4a466 0 2px, #a6864f 2px 4px) !important;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .4), 0 8px 18px rgba(0, 0, 0, .55) !important;
+}
+button.pad.cym:hover:not(:disabled) { background: repeating-radial-gradient(circle at 50% 50%, #d2b278 0 2px, #b2925b 2px 4px) !important; }
+button.pad.cym kbd { color: #3d3016 !important; }
+button.pad.foot { border-color: #5d5850 !important; background: radial-gradient(circle at 50% 38%, #26262b 0 48%, #151518 100%) !important; }
+button.pad.hit { box-shadow: 0 0 0 4px #121215, 0 0 0 7px var(--gold), 0 0 26px rgba(201, 169, 110, .55) !important; }
+.field input, #latencyInput { background: var(--panel2) !important; color: var(--ink) !important; border: 1px solid var(--line) !important; }
