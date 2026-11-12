@@ -536,6 +536,7 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
         </div>
         <div class="kb-note pc-only">Enter でスタート、Esc でやめる</div>
       </div>
+      <div id="assessBanner" hidden></div>
       <div id="prompt" class="prompt" aria-live="polite"></div>
       <div class="sheet" data-modes="staff tab"><div id="score" role="img" aria-label="楽譜"></div></div>
       <div class="fb-box"><div class="fb-wrap"><div id="fretboard"></div></div></div>
@@ -719,6 +720,7 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
 
 <script src="billing.js?v=1"></script>
 <script src="timing.js?v=1"></script>
+<script src="assess.js?v=1"></script>
 <script>
 'use strict';
 const VF = Vex.Flow;
@@ -1219,7 +1221,9 @@ const renderHome = () => {
   // ほかの練習
   $('premiumBanner').hidden = !(BILLING_ON && !account.paid);
   $('extras').innerHTML = MODES.map((m) => `<button type="button" class="tile" data-play="${m}:${FREE}"><span class="ic" style="background:${MODE_INFO[m].bg}">${MODE_INFO[m].icon}</span><span><b>自由練習・${MODE_INFO[m].name}</b><small>${m === 'tab' ? `${account.paid || !BILLING_ON ? '全' : '無料の'}ステージのフレーズからランダムに4つ` : `${account.paid || !BILLING_ON ? '全' : '無料の'}ステージから、苦手を多めに。終わりなし`}</small></span></button>`).join('')
-    + '<button type="button" class="tile" data-open="helpDlg"><span class="ic" style="background:#e8eef6">📖</span><span><b>ベースの楽譜の見方</b><small>弦の番号・フレット・ヘ音記号・TAB譜</small></span></button>';
+    + '<button type="button" class="tile" data-open="helpDlg"><span class="ic" style="background:#e8eef6">📖</span><span><b>ベースの楽譜の見方</b><small>弦の番号・フレット・ヘ音記号・TAB譜</small></span></button>'
+    + '<button type="button" class="tile" data-assess><span class="ic" style="background:#fff1d6">🎯</span><span><b>実力テスト</b><small id="assessLast">20問・約3分。指板の音名をどれだけ速く見つけられるか、レベル1〜10で測ります（無料）</small></span></button>';
+  renderAssessTile();
 };
 const renderStageInfo = () => {
   renderPractice();
@@ -1300,6 +1304,62 @@ const setRunningUI = (running) => {
   document.querySelectorAll('#tabPlaySeg button, #bpmBox button, #bpmBox input').forEach((b) => { b.disabled = running; });
 };
 
+// ---- 実力テスト（音名の道の出題で、20問でレベル1〜10）----
+// 弦とフレットの範囲・♯♭を、レベルごとに決める（有料のステージの中身に頼らない）
+const ASSESS_LEVELS = [
+  null,
+  { strings: [4], natural: true, lo: 0, hi: 5, tags: ['低い弦'], text: '4弦の0〜5フレットの音を、すぐに見つけられます' },
+  { strings: [3], natural: true, lo: 0, hi: 5, tags: ['低い弦'], text: '3弦の0〜5フレットの音も見つけられます' },
+  { strings: [4, 3], natural: true, lo: 0, hi: 12, tags: ['低い弦', '高いフレット'], text: '4・3弦なら12フレットまで見つけられます' },
+  { strings: [2, 1], natural: true, lo: 0, hi: 5, tags: ['高い弦'], text: '2・1弦の0〜5フレットも見つけられます' },
+  { strings: [2, 1], natural: true, lo: 0, hi: 12, tags: ['高い弦', '高いフレット'], text: '2・1弦も12フレットまで見つけられます' },
+  { strings: [1, 2, 3, 4], natural: true, lo: 0, hi: 7, tags: ['全部の弦'], text: '全部の弦の0〜7フレットで、幹音の場所がわかります' },
+  { strings: [1, 2, 3, 4], natural: true, lo: 0, hi: 12, tags: ['全部の弦', '高いフレット'], text: '全部の弦の12フレットまで、幹音の場所がわかります' },
+  { strings: [4, 3], natural: false, lo: 0, hi: 12, tags: ['♯♭'], text: '4・3弦なら♯♭の音も見つけられます' },
+  { strings: [1, 2, 3, 4], natural: false, lo: 0, hi: 12, tags: ['全部の弦', '♯♭'], text: '全部の弦で、♯♭の音まで見つけられます' },
+  { strings: [1, 2, 3, 4], natural: false, lo: 0, hi: 12, limit: 3000, tags: ['全部の弦', '♯♭', '速さ'], text: '全部の弦の全部の音を、3秒以内に見つけられます' },
+];
+const ASSESS_TAGS = ['低い弦', '高い弦', '高いフレット', '全部の弦', '♯♭', '速さ'];
+// 結果のレベル → 次に練習するとよい「音名の道」のステージ（0から数える）
+const ASSESS_REC = [0, 1, 2, 2, 2, 3, 3, 4, 4, 5, 5];
+// その範囲のフレットに場所がある音名だけ出す
+const assessItems = (cfg) => itemsFor('name', cfg).filter((it) => range(cfg.lo, cfg.hi).some((f) => (OPEN[it.s] + f) % 12 === it.pc));
+const renderAssessTile = () => {
+  const el = $('assessLast');
+  const last = Assess.last(store.assess);
+  if (el && last) el.textContent = `前回 レベル${last.level}（${last.date}）。20問・約3分でもう一度測れます（無料）`;
+};
+const startAssess = () => {
+  mode = 'name';
+  stageIdx = FREE;
+  goView('play');
+  stopRun(false);
+  $('result').hidden = true;
+  run = { mode: 'name', stage: FREE, items: [], results: [], combo: 0, maxCombo: 0, q: null, prevKey: null, prevMidi: null, locked: false,
+    assess: { st: Assess.staircase({ items: 20, start: 3 }), cfg: null } };
+  setRunningUI(true);
+  $('playTitle').textContent = 'ベースの実力テスト';
+  nextQuestion();
+};
+const finishAssess = () => {
+  const r = run;
+  stopRun(false);
+  $('assessBanner').hidden = true;
+  const st = r.assess.st;
+  const level = st.result();
+  const prev = Assess.last(store.assess);
+  const parts = st.parts();
+  store.assess = Assess.push(store.assess, { level, parts });
+  saveStore();
+  renderAssessTile();
+  const si = Math.min(ASSESS_REC[level], STAGES.name.length - 1);
+  Assess.show({
+    title: 'ベースの実力テスト', level, levelText: ASSESS_LEVELS[level].text, prev,
+    parts: ASSESS_TAGS.filter((t) => parts[t]).map((t) => ({ label: t, ...parts[t] })),
+    recommend: { label: `おすすめ：音名の道 ステージ${si + 1}「${STAGES.name[si].short}」を練習する`, run: () => openPlay('name', si) },
+  });
+};
+
 // ---- 1問ずつのモード（指板・音名・五線譜）----
 const startFlash = () => {
   const items = stageIdx === FREE ? freeItems(mode) : itemsFor(mode, stageOf());
@@ -1309,11 +1369,20 @@ const startFlash = () => {
 };
 const nextQuestion = () => {
   if (!run) return;
+  if (run.assess) {
+    if (run.assess.st.done) { finishAssess(); return; }
+    run.assess.cfg = ASSESS_LEVELS[run.assess.st.level];
+    run.items = assessItems(run.assess.cfg);
+    Assess.banner($('assessBanner'), { count: run.assess.st.count, items: run.assess.st.items, onQuit: () => { $('assessBanner').hidden = true; stopRun(); } });
+    $('assessBanner').hidden = false;
+  }
   const it = pickWeighted(mode, run.items, (x) => x.key === run.prevKey || (x.midi != null && x.midi === run.prevMidi));
   const flat = !isNatural((it.midi ?? it.pc) % 12) && Math.random() < 0.5;
   const q = { ...it, flat, missed: false, t0: performance.now() };
   if (mode === 'name') {
-    q.accept = range(0, MAX_FRET).filter((f) => (OPEN[it.s] + f) % 12 === it.pc).map((f) => OPEN[it.s] + f);
+    const fr = run.assess ? [run.assess.cfg.lo, run.assess.cfg.hi] : [0, MAX_FRET];
+    q.accept = range(fr[0], fr[1]).filter((f) => (OPEN[it.s] + f) % 12 === it.pc).map((f) => OPEN[it.s] + f);
+    if (!q.accept.length) q.accept = range(0, MAX_FRET).filter((f) => (OPEN[it.s] + f) % 12 === it.pc).map((f) => OPEN[it.s] + f);
     q.positions = q.accept.map((m) => ({ s: it.s, f: m - OPEN[it.s] }));
   }
   if (mode === 'staff') q.positions = positionsOf(it.midi);
@@ -1324,14 +1393,14 @@ const nextQuestion = () => {
   document.querySelectorAll('#noteBtns button').forEach((b) => b.classList.remove('right', 'wrong'));
   setFeedback('');
   const n = run.results.length + 1;
-  $('count').innerHTML = stageIdx === FREE ? `${n}<small> 問目</small>` : `${n}<small> / ${QUESTIONS}</small>`;
+  $('count').innerHTML = run.assess ? `${n}<small> / ${run.assess.st.items}</small>` : stageIdx === FREE ? `${n}<small> 問目</small>` : `${n}<small> / ${QUESTIONS}</small>`;
   setProg(stageIdx === FREE ? 0 : run.results.length / QUESTIONS);
   $('combo').textContent = run.combo >= 3 ? `${run.combo} コンボ！` : '';
   if (mode === 'fret') {
     $('prompt').innerHTML = `<span class="big">${it.s}弦 ${it.f}フレット</span><small>この位置の音は？</small>`;
     renderFretboard({ marks: [{ s: it.s, f: it.f, cls: 'target pulse' }], clickable: false });
   } else if (mode === 'name') {
-    $('prompt').innerHTML = `<span class="big">${it.s}弦</span>で<span class="big">${pcName(it.pc, flat)}</span><small>を弾いてください（0〜12フレット）</small>`;
+    $('prompt').innerHTML = `<span class="big">${it.s}弦</span>で<span class="big">${pcName(it.pc, flat)}</span><small>を弾いてください（${run.assess ? `${run.assess.cfg.lo}〜${run.assess.cfg.hi}` : '0〜12'}フレット）</small>`;
     renderFretboard({ strings: [it.s] });
   } else {
     $('prompt').innerHTML = '<small>この音を弾いてください</small>';
@@ -1371,6 +1440,7 @@ const flashCorrect = (inp) => {
   run.locked = true;
   recordItem(mode, q.key, first, ms);
   run.results.push({ ok: first, t: ms });
+  if (run.assess) run.assess.st.record(first && ms <= (run.assess.cfg.limit ?? LIMIT.name), run.assess.cfg.tags);
   if (first) { run.combo++; run.maxCombo = Math.max(run.maxCombo, run.combo); } else run.combo = 0;
   const sec = (ms / 1000).toFixed(1);
   setFeedback(first ? `◎ 正解！ ${sec}秒` : `○ 正解（2回目以降） ${sec}秒`, first ? 'ok' : 'good');
@@ -1414,6 +1484,7 @@ const skipQuestion = () => {
   run.combo = 0;
   recordItem(mode, q.key, false, 0);
   run.results.push({ ok: false, t: LIMIT[mode] * 2 });
+  if (run.assess) run.assess.st.record(false, run.assess.cfg.tags);
   const ans = mode === 'fret' ? pcName(q.midi % 12, q.flat) : noteLabel(q.midi ?? q.accept[0], q.flat);
   setFeedback(`答え：${ans}`, 'good');
   if (run.stage !== FREE) setProg(run.results.length / QUESTIONS);
@@ -1423,7 +1494,7 @@ const skipQuestion = () => {
   renderStats();
   later(() => (shouldFinish() ? finishFlash() : nextQuestion()), 1800);
 };
-const shouldFinish = () => run && run.stage !== FREE && run.results.length >= QUESTIONS;
+const shouldFinish = () => run && !run.assess && run.stage !== FREE && run.results.length >= QUESTIONS;
 const finishFlash = () => {
   const r = run;
   const okN = r.results.filter((x) => x.ok).length;
@@ -1730,7 +1801,8 @@ const startRun = () => {
 const stopRun = (showIdle = true) => {
   clearTimers();
   if (run && run.raf) cancelAnimationFrame(run.raf);
-  const wasFree = run && run.stage === FREE && run.mode !== 'tab' && run.results.length;
+  const wasFree = run && !run.assess && run.stage === FREE && run.mode !== 'tab' && run.results.length;
+  if (run?.assess) $('assessBanner').hidden = true;
   const r = run;
   run = null;
   setRunningUI(false);
@@ -1923,6 +1995,7 @@ $('tabPlaySeg').addEventListener('click', (e) => {
 });
 $('startBtn').addEventListener('click', startRun);
 $('stopBtn').addEventListener('click', () => (run?.loop && run.total ? finishTab() : stopRun()));
+document.addEventListener('click', (e) => { if (e.target instanceof Element && e.target.closest('[data-assess]')) startAssess(); });
 $('skipBtn').addEventListener('click', skipQuestion);
 $('demoBtn').addEventListener('click', playDemo);
 const setBpm = (v) => {
