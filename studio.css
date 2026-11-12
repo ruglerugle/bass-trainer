@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@500;600&family=Inter:wght@300;400&display=swap");
 /* ==========================================================================
    スタジオ（漆黒×真鍮）— 楽器トレーナー共通の見た目
    各アプリの index.html の <style> のあとで読み込み、色の変数と部品の形を上書きする。
@@ -41,6 +42,17 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 h1, h2, h3 { font-weight: 400; letter-spacing: .04em; }
+
+/* フォント：見出しは Zen オールド明朝、大きな数字は Inter、本文は Noto Sans JP（2026-11-13） */
+:root {
+  --serif: "Zen Old Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --num: "Inter", "Noto Sans JP", sans-serif;
+}
+h1, h2, h3, .hello h1, .continue h2, .lane-head h3, .lane h3, dialog h2, dialog h3 { font-family: var(--serif) !important; font-weight: 600; }
+.hello h1, .section-title h2, .page > h1 { font-weight: 500; }
+.ring b, .mini b, .stat b, .price-card b, .read b, .rg-live, .count {
+  font-family: var(--num) !important; font-variant-numeric: tabular-nums; letter-spacing: -.01em;
+}
 b, strong { font-weight: 500; }
 ::selection { background: rgba(201, 169, 110, .35); }
 
