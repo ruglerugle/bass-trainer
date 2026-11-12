@@ -12,6 +12,7 @@
 const Timing = (() => {
   const css = `
 .tm { width: 100%; max-width: 620px; margin: 0 auto; display: grid; gap: 4px; }
+.tm[hidden], .pr[hidden] { display: none; }
 .tm-bar { position: relative; height: 22px; border-radius: 999px; background: var(--panel2, #1f1f24); box-shadow: 0 0 0 1px var(--line, #2b2b31) inset; overflow: hidden; }
 .tm-ok { position: absolute; top: 0; bottom: 0; background: rgba(92, 194, 138, .16); }
 .tm-pf { position: absolute; top: 0; bottom: 0; background: rgba(201, 169, 110, .22); }
