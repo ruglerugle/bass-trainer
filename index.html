@@ -364,6 +364,8 @@ body[data-mode="song"] #score svg { max-width: none; }
 .feedback.good { color: #ffd36b; }
 .feedback.ng { color: #ff7b7f; }
 .heard { font-size: .84rem; color: var(--play-muted); min-height: 1.4em; text-align: center; }
+.song-mixer { width: 100%; max-width: 760px; margin: 6px auto 0; text-align: left; }
+.song-mixer h3 { margin: 0 0 8px; font-size: .95rem; }
 .kb-note { font-size: .78rem; color: var(--play-muted); text-align: center; margin: 0; max-width: 640px; }
 /* 判定の表示 */
 #judgeLayer { position: absolute; left: 0; right: 0; top: 18%; display: grid; justify-items: center; pointer-events: none; z-index: 5; }
@@ -556,6 +558,7 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
         <button id="stopBtn" class="ghost" type="button" hidden>■ やめる</button>
         <button id="demoBtn" class="ghost" type="button" data-modes="tab song">♪ お手本を聞く</button>
       </div>
+      <div id="songMixerBox" class="song-mixer" data-modes="song" hidden><h3>元の曲（パート別の音量）</h3><div id="songMixer"></div></div>
       <div id="heard" class="heard" aria-live="off"></div>
       <p id="inputNote" class="kb-note"></p>
     </section>
@@ -725,11 +728,13 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
   </div>
 </dialog>
 
-<script src="band-songs.js?v=2"></script>
+<script src="band-songs.js?v=3"></script>
 <script src="billing.js?v=1"></script>
 <script src="timing.js?v=2"></script>
 <script src="assess.js?v=1"></script>
 <script src="studio.js?v=1"></script>
+<script src="mixer.js?v=1"></script>
+<script src="demo.js?v=1"></script>
 <script>
 'use strict';
 const VF = Vex.Flow;
@@ -951,13 +956,14 @@ const pluckBuffer = (midi) => {
   pluckCache.set(midi, buf);
   return buf;
 };
-const pluck = (midi, when = 0, gain = 1) => {
+// dest: つなぐ先（お手本は止められるように、お手本だけの GainNode を通す）
+const pluck = (midi, when = 0, gain = 1, dest = master) => {
   ensureAudio();
   const src = actx.createBufferSource();
   src.buffer = pluckBuffer(midi);
   const g = actx.createGain();
   g.gain.value = gain;
-  src.connect(g).connect(master);
+  src.connect(g).connect(dest);
   src.start(Math.max(actx.currentTime, when));
 };
 const click = (when, accent) => {
@@ -1240,6 +1246,7 @@ const renderHome = () => {
 const renderStageInfo = () => {
   renderPractice();
   if (mode === 'song') { renderSongInfo(); return; }
+  closeSongMixer();
   const st = stageOf();
   if (!st) {
     $('stageInfo').innerHTML = `<b>自由練習・${MODE_INFO[mode].name}</b>${mode === 'tab'
@@ -1803,8 +1810,14 @@ const playDemo = () => {
   ensureAudio();
   const p = run && run.mode === 'tab' ? curPhrase() : (stageOf() ? stageOf().phrases[0] : TAB_STAGES[0].phrases[0]);
   const beat = 60 / S().bpm;
-  const t0 = actx.currentTime + 0.1;
-  p.notes.forEach(([s, f], i) => pluck(OPEN[s] + f, t0 + i * beat, 0.9));
+  // 一時停止・停止できるように、demo.js でお手本だけの GainNode を通して鳴らす
+  Demo.play($('demoBtn'), {
+    ctx: actx, out: master,
+    len: p.notes.length * beat + 1,
+    schedule: (bus, start, from) => p.notes.forEach(([s, f], i) => {
+      if (i * beat >= from - 0.005) pluck(OPEN[s] + f, start + i * beat - from, 0.9, bus);
+    }),
+  });
 };
 
 // ---- 曲の道（バンドの曲を、セクションごとに曲のテンポで弾く）----
@@ -1904,9 +1917,31 @@ const openSong = (i) => {
   goView('play');
 };
 
+// ---- 元の曲（パート別の音量）：曲に stems（Suno の音源をパートに分けたもの）があるときだけ、mixer.js のプレーヤーを出す ----
+let songMixer = null; // { id, mx }
+const closeSongMixer = () => {
+  if (songMixer) songMixer.mx.destroy();
+  songMixer = null;
+  $('songMixerBox').hidden = true;
+};
+const stopSongMixer = () => { if (songMixer) songMixer.mx.stop(); };
+const pauseSongMixer = () => { if (songMixer) songMixer.mx.pause(); };
+const syncSongMixer = (song) => {
+  if (songMixer && songMixer.id === song.id) return;
+  closeSongMixer();
+  if (!song.stems) return;
+  $('songMixerBox').hidden = false;
+  songMixer = { id: song.id, mx: Mixer.create($('songMixer'), { id: song.id, ...song.stems, mine: 'bass' }) };
+};
+// 元の曲を再生したら、お手本は止める（2つの音を重ねない）
+$('songMixer').addEventListener('click', (e) => {
+  if (e.target instanceof Element && e.target.closest('[data-mx="play"]')) Demo.stop();
+});
+
 // 弾くところ（セクション・通し）のボタンと、曲の説明
 const renderSongInfo = () => {
   const song = songOf(stageIdx);
+  syncSongMixer(song);
   const k = songSecOf(song);
   const btn = (v, label) => `<button type="button" data-sec="${v}" aria-pressed="${k === v}">${songSecLocked(v) ? '🔒 ' : ''}${label}</button>`;
   $('songSecSeg').innerHTML = song.sections.map((sec, j) => btn(j, sec.name)).join('') + btn(SONG_ALL, '通し');
@@ -2197,19 +2232,26 @@ const playSongDemo = () => {
   if (songSecLocked(k)) { openPay(); return; }
   const beat = 60 / ((song.tempo * songPractice().speed) / 100);
   const secs = k === SONG_ALL ? song.sections.map((_, j) => j) : [k];
-  const t0 = actx.currentTime + 0.15;
   let beat0 = 0;
+  const evs = []; // { at: お手本の頭からの秒, notes, gain }
   secs.forEach((j) => {
     const sec = song.sections[j];
     sec.bars.forEach((bar, bi) => bar.forEach((ev) => {
       if (!ev.notes.length) return;
-      const when = t0 + (beat0 + bi * song.barBeats + ev.beat) * beat;
       const gain = ev.notes.some((n) => n.tech.includes('m')) ? 0.55 : 0.9;
-      const notes = [...ev.notes].sort((a, b) => b.s - a.s);
-      // 先の音は、鳴らす少し前に予約する（「やめる」やスタートで止められるように）
-      later(() => notes.forEach((n, x) => pluck(OPEN[n.s] + n.f, when + x * 0.012, gain / Math.sqrt(notes.length))), Math.max(0, (when - actx.currentTime) * 1000 - 120));
+      evs.push({ at: (beat0 + bi * song.barBeats + ev.beat) * beat, notes: [...ev.notes].sort((a, b) => b.s - a.s), gain });
     }));
     beat0 += sec.bars.length * song.barBeats;
+  });
+  pauseSongMixer();
+  // 一時停止・停止できるように、demo.js でお手本だけの GainNode を通して鳴らす（止めると予約済みの音も消える）
+  Demo.play($('demoBtn'), {
+    ctx: actx, out: master,
+    len: beat0 * beat + 1,
+    schedule: (bus, start, from) => evs.forEach((e) => {
+      if (e.at < from - 0.005) return;
+      e.notes.forEach((n, x) => pluck(OPEN[n.s] + n.f, start + e.at - from + x * 0.012, e.gain / Math.sqrt(e.notes.length), bus));
+    }),
   });
 };
 
@@ -2217,6 +2259,7 @@ const playSongDemo = () => {
 const startRun = () => {
   ensureAudio();
   stopRun(false);
+  stopSongMixer(); // 練習はクリックと自分の音で弾くので、元の曲は止める
   $('result').hidden = true;
   if (mode === 'tab') startTab();
   else if (mode === 'song') startSong();
@@ -2224,6 +2267,7 @@ const startRun = () => {
 };
 const stopRun = (showIdle = true) => {
   clearTimers();
+  Demo.stop(); // お手本も止める（練習を始める・ステージや画面を変えるとき）
   if (run && run.raf) cancelAnimationFrame(run.raf);
   const wasFree = run && !run.assess && run.stage === FREE && run.mode !== 'tab' && run.results.length;
   if (run?.assess) $('assessBanner').hidden = true;
@@ -2247,7 +2291,7 @@ const selectStage = (i) => {
 // ---- 画面の切り替え ----
 let view = 'home';
 const goView = (v) => {
-  if (view === 'play' && v !== 'play') stopRun(false);
+  if (view === 'play' && v !== 'play') { stopRun(false); closeSongMixer(); }
   view = v;
   document.body.dataset.view = v;
   document.querySelectorAll('.tabs button').forEach((b) => {
