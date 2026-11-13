@@ -261,25 +261,34 @@ const showPairCode = async () => {
   tick();
 };
 
+const pairToast = (m) => (typeof toast === 'function' ? toast(m) : alert(m));
+// 番号でログインしたら「この端末にパスキーを作る」画面を出す（iPhone の Safari は、ボタンを押した直後でないとパスキーを作れないので、押してもらう）
+let pairOpt = null;
+let pairPending = false;
 const claimPair = async () => {
   try {
     await apiPost('/api/pair/claim', { code: $('pairCode').value });
-    // ログインできたら、次からは番号なしで入れるように、この端末にもパスキーを作る
-    afterSignIn = async () => {
-      if (!window.PublicKeyCredential) return;
-      try {
-        const opt = await apiPost('/api/passkey/options');
-        const cred = await navigator.credentials.create({ publicKey: creationOptions(opt) });
-        await apiPost('/api/passkey/verify', { response: registrationJSON(cred) });
-        pairNote('この端末にもパスキーを作りました');
-      } catch (e) {
-        pairNote(`ログインしました（パスキーは作れませんでした：${explainPasskey(e)}）`);
-      }
-    };
     $('pairCode').value = '';
-    await signedInDone('');
+    pairPending = true;
+    openAcct('pairKey');
+    // 押した瞬間にすぐ作れるよう、先に合言葉をもらっておく
+    pairOpt = await apiPost('/api/passkey/options').catch(() => null);
   } catch (e) {
     acctError(e.message);
+  }
+};
+const makePairPasskey = async () => {
+  if (!window.PublicKeyCredential) return acctError('このブラウザはパスキーに対応していません。新しいブラウザで開いてください。');
+  try {
+    const opt = pairOpt || await apiPost('/api/passkey/options');
+    pairOpt = null;
+    const cred = await navigator.credentials.create({ publicKey: creationOptions(opt) });
+    await apiPost('/api/passkey/verify', { response: registrationJSON(cred) });
+    closeAcct();
+    pairToast('この端末にパスキーを作りました。次からはこの端末だけでログインできます');
+  } catch (e) {
+    pairOpt = null;
+    acctError(`${explainPasskey(e)}　もう一度「この端末にパスキーを作る」を押してください。`);
   }
 };
 
@@ -341,6 +350,13 @@ const initBilling = () => {
   $('acctLoginBtn').addEventListener('click', loginPasskey);
   $('acctRecoverBtn').addEventListener('click', recoverAccount);
   $('pairClaimBtn').addEventListener('click', claimPair);
+  $('pairKeyBtn').addEventListener('click', makePairPasskey);
+  // パスキーを作る画面を閉じたら（作っても・あとにしても）、ログインした状態を読み直す
+  $('acctDlg').addEventListener('close', () => {
+    if (!pairPending) return;
+    pairPending = false;
+    refreshAccount().catch((e) => console.warn('ログインの状態を読み直せませんでした', e));
+  });
   $('pairCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') claimPair(); });
   $('pairNewBtn').addEventListener('click', () => showPairCode().catch((e) => acctError(e.message)));
   $('acctDlg').addEventListener('click', (e) => {

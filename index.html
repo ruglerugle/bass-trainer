@@ -687,19 +687,23 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
     <div data-view="login" hidden>
       <p>この端末（または同じアカウントの端末）に保存したパスキーでログインします。</p>
       <div class="controls"><button id="acctLoginBtn" type="button">パスキーでログイン</button></div>
-      <p style="margin-top:14px">ほかの端末でログイン中なら <button type="button" class="link" data-goto="pairIn">その端末に出した番号を使う</button></p>
+      <p style="margin-top:14px">ほかの端末でログイン中なら <button type="button" class="link" data-goto="pairIn">番号を入れて、この端末にパスキーを作る</button></p>
       <p style="margin-top:14px">パスキーをなくした方は <button type="button" class="link" data-goto="recover">復旧コードを使う</button>／初めての方は <button type="button" class="link" data-goto="register">パスキーを作る</button></p>
     </div>
     <div data-view="pairIn" hidden>
-      <p>ログイン中の端末で、設定の「別の端末でログイン」を押すと出る<strong>8けたの番号</strong>を入れてください。ログインしたあと、この端末にもパスキーを作ります。</p>
+      <p>ログイン中の端末で、設定の「別の端末でログイン」を押すと出る<strong>8けたの番号</strong>を入れてください。番号でログインしたあと、この端末にパスキーを作ります。</p>
       <input id="pairCode" inputmode="numeric" maxlength="9" placeholder="1234 5678" autocomplete="one-time-code">
       <div class="controls"><button id="pairClaimBtn" type="button">番号でログイン</button></div>
     </div>
     <div data-view="pairOut" hidden>
-      <p>ログインしたい端末（スマホなど）でこのサイトを開き、「ログイン」→「その端末に出した番号を使う」でこの番号を入れてください。</p>
+      <p>ログインしたい端末（スマホなど）でこのサイトを開き、「ログイン」→「番号を入れて、この端末にパスキーを作る」でこの番号を入れてください。その端末にパスキーができ、次からはその端末だけでログインできます。</p>
       <p id="pairShow" class="acct-code"></p>
       <p id="pairLeft"></p>
       <div class="controls"><button id="pairNewBtn" type="button" class="ghost">番号を出し直す</button></div>
+    </div>
+    <div data-view="pairKey" hidden>
+      <p>ログインしました。次からこの端末だけでログインできるように、<strong>この端末にパスキーを作ります</strong>。下のボタンを押して、指紋・顔・PIN で確かめてください。</p>
+      <div class="controls"><button id="pairKeyBtn" type="button">この端末にパスキーを作る</button></div>
     </div>
     <div data-view="recover" hidden>
       <p>登録したときにメモした復旧コードを入れてください。</p>
@@ -741,7 +745,7 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
 </dialog>
 
 <script src="band-songs.js?v=6"></script>
-<script src="billing.js?v=2"></script>
+<script src="billing.js?v=3"></script>
 <script src="timing.js?v=2"></script>
 <script src="assess.js?v=1"></script>
 <script src="studio.js?v=1"></script>
