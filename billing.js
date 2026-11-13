@@ -229,10 +229,11 @@ const recoverAccount = async () => {
   try {
     const done = await apiPost('/api/recover', { code: $('acctCode').value });
     // 使った復旧コードは無効になるので新しいコードを見せ、この端末のパスキーを作ってもらう
+    // （iPhone の Safari はボタンを押した直後でないと作れないので、「この端末にパスキーを作る」のボタンを出す）
     afterSignIn = async () => {
-      const opt = await apiPost('/api/passkey/options');
-      const cred = await navigator.credentials.create({ publicKey: creationOptions(opt) });
-      await apiPost('/api/passkey/verify', { response: registrationJSON(cred) });
+      pairPending = true;
+      openAcct('pairKey');
+      pairOpt = await apiPost('/api/passkey/options').catch(() => null);
     };
     await signedInDone(done.recovery);
   } catch (e) {
