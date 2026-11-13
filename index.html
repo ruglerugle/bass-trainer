@@ -674,6 +674,14 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
 </dialog>
 
 <!-- アカウント（パスキー） -->
+<style>
+#acctDlg .sec-h { font-size: 1rem; margin: 18px 0 6px; }
+#acctDlg .sec-devices { list-style: none; padding: 0; margin: 0 0 8px; }
+#acctDlg .sec-devices li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding: 8px 0; border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent); }
+#acctDlg .sec-devices .link { margin-left: auto; }
+#acctDlg .sec-devices small { flex-basis: 100%; opacity: .7; }
+#acctDlg .sec-note { font-size: .88rem; opacity: .8; }
+</style>
 <dialog id="acctDlg" class="sheet-dlg" aria-labelledby="acctTitle">
   <div class="dlg-in">
     <div class="dlg-head"><h2 id="acctTitle">ベーストレーナー アカウント</h2><button type="button" class="icon" id="acctClose" aria-label="閉じる">✕</button></div>
@@ -681,6 +689,8 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
     <div data-view="register">
       <p>表示名（ニックネーム）を決めて、この端末にパスキーを作ります。</p>
       <input id="acctName" maxlength="30" placeholder="ニックネーム" autocomplete="nickname">
+      <input id="acctEmail" type="email" maxlength="254" placeholder="メールアドレス（任意・おすすめ）" autocomplete="email">
+      <p class="sec-note">メールアドレスを登録しておくと、端末をなくしても、このメールでログインし直せます（あとからでも登録できます）。</p>
       <div class="controls"><button id="acctRegisterBtn" type="button">パスキーを作って続ける</button></div>
       <p style="margin-top:14px">前に作った方は <button type="button" class="link" data-goto="login">パスキーでログイン</button></p>
     </div>
@@ -688,10 +698,11 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
       <p>この端末（または同じアカウントの端末）に保存したパスキーでログインします。</p>
       <div class="controls"><button id="acctLoginBtn" type="button">パスキーでログイン</button></div>
       <p style="margin-top:14px">ほかの端末でログイン中なら <button type="button" class="link" data-goto="pairIn">番号を入れて、この端末にパスキーを作る</button></p>
+      <p style="margin-top:6px">端末をなくした方は <button type="button" class="link" data-goto="emailLogin">メールでログイン</button>（メールアドレスを登録した方）</p>
       <p style="margin-top:14px">パスキーをなくした方は <button type="button" class="link" data-goto="recover">復旧コードを使う</button>／初めての方は <button type="button" class="link" data-goto="register">パスキーを作る</button></p>
     </div>
     <div data-view="pairIn" hidden>
-      <p>ログイン中の端末で、設定の「別の端末でログイン」を押すと出る<strong>8けたの番号</strong>を入れてください。番号でログインしたあと、この端末にパスキーを作ります。</p>
+      <p>ログイン中の端末で、設定の「ログインと端末」→「別の端末でログイン」を押すと出る<strong>8けたの番号</strong>を入れてください。番号でログインしたあと、この端末にパスキーを作ります。</p>
       <input id="pairCode" inputmode="numeric" maxlength="9" placeholder="1234 5678" autocomplete="one-time-code">
       <div class="controls"><button id="pairClaimBtn" type="button">番号でログイン</button></div>
     </div>
@@ -705,11 +716,27 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
       <p>ログインしました。次からこの端末だけでログインできるように、<strong>この端末にパスキーを作ります</strong>。下のボタンを押して、指紋・顔・PIN で確かめてください。</p>
       <div class="controls"><button id="pairKeyBtn" type="button">この端末にパスキーを作る</button></div>
     </div>
+    <div data-view="security" hidden>
+      <h3 class="sec-h">メールアドレス（ログインの戻り道）</h3>
+      <p id="secEmailState"></p>
+      <input id="secEmail" type="email" maxlength="254" autocomplete="email">
+      <div class="controls"><button id="secEmailBtn" type="button">確認メールを送る</button><button id="secEmailRemove" type="button" class="ghost" hidden>登録を消す</button></div>
+      <h3 class="sec-h">パスキーのある端末</h3>
+      <ul id="secDevices" class="sec-devices"></ul>
+      <p id="secSessions" class="sec-note"></p>
+      <div class="controls"><button id="secPair" type="button" class="ghost">別の端末でログイン（番号を出す）</button><button id="secLogoutOthers" type="button" class="ghost">ほかの端末をすべてログアウト</button></div>
+    </div>
+    <div data-view="emailLogin" hidden>
+      <p>登録したメールアドレスに、ログインのリンクを送ります（30分有効）。リンクを開くと、その端末にパスキーを作れます。</p>
+      <input id="mailLoginAddr" type="email" maxlength="254" autocomplete="email" placeholder="you@example.com">
+      <div class="controls"><button id="mailLoginBtn" type="button">ログインのリンクを送る</button></div>
+      <p id="mailLoginDone" hidden>登録があれば、ログインのリンクを送りました。届いたメールのリンクを30分以内に開いてください（届かなければ迷惑メールのフォルダも見てください）。</p>
+    </div>
     <div data-view="recover" hidden>
       <p>登録したときにメモした復旧コードを入れてください。</p>
       <input id="acctCode" placeholder="XXXXX-XXXXX-XXXXX-XXXXX" autocomplete="off">
       <div class="controls"><button id="acctRecoverBtn" type="button">復旧コードでログイン</button></div>
-      <p style="margin-top:14px">復旧コードもなくした方は <button type="button" class="link" data-feedback="account">こちらから連絡</button>（ご本人と確かめて、新しい復旧コードをお送りします）</p>
+      <p style="margin-top:14px">復旧コードもなくした方は <button type="button" class="link" data-goto="emailLogin">メールでログイン</button>（メールアドレスを登録した方）。登録していない方は <button type="button" class="link" data-feedback="account">こちらから連絡</button>（ご本人と確かめて、新しい復旧コードをお送りします）</p>
     </div>
     <div data-view="recovery" hidden>
       <p>パスキーをなくしたときに使う<strong>復旧コード</strong>です。この画面にしか出ないので、メモして大切に保管してください。</p>
@@ -746,7 +773,7 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
 </dialog>
 
 <script src="band-songs.js?v=6"></script>
-<script src="billing.js?v=4"></script>
+<script src="billing.js?v=5"></script>
 <script src="timing.js?v=2"></script>
 <script src="assess.js?v=1"></script>
 <script src="studio.js?v=1"></script>

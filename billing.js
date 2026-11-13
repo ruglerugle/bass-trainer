@@ -124,15 +124,15 @@ const renderPlan = () => {
   let btns;
   if (account.paid) {
     status = `有料版をお使いです（${account.name}）。${account.cancelAtEnd ? `${dateLabel(account.periodEnd)}で終了します` : `次の更新日は${dateLabel(account.periodEnd)}です`}。`;
-    btns = btn('portal', 'お支払い・解約', true) + btn('pair', '別の端末でログイン', true) + btn('logout', 'ログアウト', true);
+    btns = btn('portal', 'お支払い・解約', true) + btn('security', 'ログインと端末', true) + btn('logout', 'ログアウト', true);
   } else if (account.signedIn) {
     status = `${account.name} でログイン中。有料版にすると、ステージ4から先の${lockedCount()}ステージも練習できます（${PRICE_LABEL}）。`;
-    btns = btn('buy', `有料版にする（${PRICE_LABEL}）`) + (account.customer ? btn('portal', 'お支払いの履歴', true) : '') + btn('pair', '別の端末でログイン', true) + btn('logout', 'ログアウト', true);
+    btns = btn('buy', `有料版にする（${PRICE_LABEL}）`) + (account.customer ? btn('portal', 'お支払いの履歴', true) : '') + btn('security', 'ログインと端末', true) + btn('logout', 'ログアウト', true);
   } else {
     status = `各モードのステージ1〜3は無料です。有料版（${PRICE_LABEL}）にすると、ステージ4から先の${lockedCount()}ステージも練習できます。`;
     btns = btn('buy', `有料版にする（${PRICE_LABEL}）`) + btn('login', 'ログイン（申し込んだ方）', true);
   }
-  $('planStatus').textContent = status;
+  $('planStatus').textContent = status + (account.signedIn && !account.hasEmail ? '（「ログインと端末」でメールアドレスを登録しておくと、端末をなくしても自分でログインし直せます）' : '');
   $('planBtns').innerHTML = btns;
   renderHome();
 };
@@ -207,6 +207,13 @@ const registerPasskey = async () => {
     const opt = await apiPost('/api/register/options', { name: $('acctName').value });
     const cred = await navigator.credentials.create({ publicKey: creationOptions(opt) });
     const done = await apiPost('/api/register/verify', { response: registrationJSON(cred) });
+    // メールアドレス（任意）を入れていたら、確認メールを送る
+    const mail = $('acctEmail').value.trim();
+    if (mail) {
+      await apiPost('/api/email/start', { email: mail })
+        .then(() => pairToast('確認メールを送りました。メールのリンクを開くと登録が終わります'))
+        .catch((e) => pairToast(`確認メールを送れませんでした（${e.message}）。設定の「ログインと端末」から送り直せます`));
+    }
     await signedInDone(done.recovery);
   } catch (e) {
     acctError(explainPasskey(e));
@@ -293,11 +300,107 @@ const makePairPasskey = async () => {
   }
 };
 
+// ---- ログインと端末：メールアドレス（ログインの戻り道）・パスキーのある端末・ほかの端末のログアウト（*-billing の src/account.ts） ----
+const dateShort = (secs) => { const d = new Date(secs * 1000); return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`; };
+const renderSecurity = (info) => {
+  const has = !!info.email;
+  $('secEmailState').textContent = has
+    ? `登録済み：${info.email}（パスキーも復旧コードもなくしたとき、ここにログインのリンクを送れます）`
+    : 'まだ登録されていません。登録しておくと、パスキーも復旧コードもなくしたとき、このメールにログインのリンクを送れます。';
+  $('secEmail').value = has ? '' : (info.suggest || '');
+  $('secEmail').placeholder = has ? '変えるときは、新しいメールアドレス' : 'you@example.com';
+  $('secEmailBtn').textContent = has ? 'メールアドレスを変える' : '確認メールを送る';
+  $('secEmailRemove').hidden = !has;
+  const ul = $('secDevices');
+  ul.textContent = '';
+  info.devices.forEach((d) => {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.textContent = `${d.label}${d.current ? '（この端末）' : ''}`;
+    li.append(name);
+    if (info.devices.length > 1) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'link';
+      b.dataset.removeDevice = String(d.id);
+      b.textContent = '外す';
+      li.append(b);
+    }
+    const meta = document.createElement('small');
+    meta.textContent = `${dateShort(d.createdAt)} に作成${d.lastUsedAt ? `・最後に使ったのは ${dateShort(d.lastUsedAt)}` : ''}${d.synced ? '・iCloud などで同期' : ''}`;
+    li.append(meta);
+    ul.append(li);
+  });
+  $('secSessions').textContent = `ログイン中のブラウザ：${info.sessions}つ（この端末をふくむ）`;
+};
+const openSecurity = async () => {
+  openAcct('security');
+  $('secDevices').textContent = '読み込み中…';
+  renderSecurity(await apiGet('/api/account'));
+};
+const secAction = async (fn, okMsg) => {
+  try {
+    $('acctError').hidden = true;
+    await fn();
+    if (okMsg) pairToast(okMsg);
+    renderSecurity(await apiGet('/api/account'));
+  } catch (e) {
+    acctError(e.message);
+  }
+};
+
+// メールでログイン：登録したメールにリンクを送る
+const sendLoginMail = async () => {
+  try {
+    $('acctError').hidden = true;
+    await apiPost('/api/email/login', { email: $('mailLoginAddr').value });
+    $('mailLoginDone').hidden = false;
+  } catch (e) {
+    acctError(e.message);
+  }
+};
+
+// メールのリンク（?mail=verify|login&t=…）から来たとき
+const handleMailLink = async () => {
+  const q = new URLSearchParams(location.search);
+  const kind = q.get('mail');
+  const t = q.get('t');
+  if (!kind || !t) return;
+  history.replaceState(null, '', location.pathname);
+  try {
+    if (kind === 'verify') {
+      const { email } = await apiPost('/api/email/verify', { token: t });
+      pairToast(`メールアドレス（${email}）を登録しました`);
+    } else if (kind === 'login') {
+      await apiPost('/api/email/claim', { token: t });
+      // 記録の同期でページが読み直されても、パスキーを作る画面を出せるように覚えておく
+      try { sessionStorage.setItem('needPasskey', '1'); } catch (e) { console.warn('sessionStorage を使えません', e); }
+    }
+  } catch (e) {
+    alert(e.message);
+  }
+};
+// メールのリンクでログインしたら、この端末にパスキーを作る画面を出す（ボタンを押して作る）
+const offerPasskeyAfterLink = () => {
+  let need = false;
+  try {
+    need = sessionStorage.getItem('needPasskey') === '1';
+    sessionStorage.removeItem('needPasskey');
+  } catch (e) {
+    console.warn('sessionStorage を使えません', e);
+  }
+  if (!need || !account.signedIn) return;
+  pairPending = true;
+  openAcct('pairKey');
+  apiPost('/api/passkey/options').then((o) => { pairOpt = o; }).catch(() => { pairOpt = null; });
+};
+
 const onPlanButton = async (what) => {
   try {
     if (what === 'buy') await buyPlan();
     else if (what === 'login') { afterSignIn = null; openAcct('login'); }
     else if (what === 'pair') await showPairCode();
+    else if (what === 'security') await openSecurity();
     else if (what === 'portal') location.href = (await apiPost('/api/portal')).url;
     else if (what === 'logout') {
       await apiPost('/api/logout');
@@ -360,13 +463,31 @@ const initBilling = () => {
   });
   $('pairCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') claimPair(); });
   $('pairNewBtn').addEventListener('click', () => showPairCode().catch((e) => acctError(e.message)));
+  $('mailLoginBtn').addEventListener('click', sendLoginMail);
+  $('mailLoginAddr').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendLoginMail(); });
+  $('secEmailBtn').addEventListener('click', () => secAction(() => apiPost('/api/email/start', { email: $('secEmail').value }), '確認メールを送りました。メールのリンクを開くと登録が終わります'));
+  $('secEmailRemove').addEventListener('click', () => {
+    if (confirm('メールアドレスの登録を消しますか？')) secAction(() => apiPost('/api/email/remove'), 'メールアドレスの登録を消しました');
+  });
+  $('secDevices').addEventListener('click', (e) => {
+    const btn = e.target instanceof Element ? e.target.closest('[data-remove-device]') : null;
+    if (btn && confirm('この端末のパスキーを外しますか？その端末はログアウトされます。')) {
+      secAction(() => apiPost('/api/devices/remove', { id: Number(btn.dataset.removeDevice) }), '端末を外しました');
+    }
+  });
+  $('secPair').addEventListener('click', () => showPairCode().catch((e) => acctError(e.message)));
+  $('secLogoutOthers').addEventListener('click', () => {
+    if (confirm('この端末のほかを、すべてログアウトしますか？')) secAction(() => apiPost('/api/sessions/logout-others'), 'ほかの端末をログアウトしました');
+  });
   $('acctDlg').addEventListener('click', (e) => {
     const b = e.target instanceof Element ? e.target.closest('[data-goto]') : null;
     if (b) openAcct(b.dataset.goto);
   });
   $('acctClose').addEventListener('click', () => { afterSignIn = null; closeAcct(); });
   renderPlan();
-  refreshAccount()
+  handleMailLink()
+    .then(refreshAccount)
+    .then(offerPasskeyAfterLink)
     .then(handleCheckoutReturn)
     .catch((e) => console.warn('有料版の状態を確かめられませんでした', e));
 };
