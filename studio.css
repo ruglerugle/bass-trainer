@@ -300,3 +300,15 @@ dialog.sheet-dlg { max-width: 100vw; box-sizing: border-box; overflow-x: hidden;
 }
 /* 知らせはダイアログより手前に出す（popover で最前面に置く。billing.js などの toast が popover を付ける） */
 .toast[popover] { inset: auto auto 90px 50%; margin: 0; border: 0; overflow: visible; }
+
+/* ---- 下から出る画面（設定など）：iPhone で閉じられない・後ろがスクロールする問題 ---- */
+/* vh は Safari のアドレスバーが隠れたときの高さなので、画面より高くなり ✕ が上に隠れる。見えている高さ（dvh）で測る */
+dialog.sheet-dlg { max-height: min(88vh, 900px); max-height: min(88dvh, 900px); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+@media (max-width: 600px) {
+  dialog.sheet-dlg { max-height: 92vh; max-height: 92dvh; }
+}
+/* 見出しと ✕ は、中をスクロールしても上に残す */
+dialog.sheet-dlg .dlg-head { position: sticky; top: 0; z-index: 2; background: var(--paper); margin: -22px -22px 12px; padding: 16px 22px 10px; }
+/* 開いているあいだは後ろのページをスクロールさせない */
+html:has(dialog:modal), html:has(dialog:modal) body { overflow: hidden; }
+.fbx-dlg { overscroll-behavior: contain; }
