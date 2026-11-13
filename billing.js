@@ -124,10 +124,10 @@ const renderPlan = () => {
   let btns;
   if (account.paid) {
     status = `有料版をお使いです（${account.name}）。${account.cancelAtEnd ? `${dateLabel(account.periodEnd)}で終了します` : `次の更新日は${dateLabel(account.periodEnd)}です`}。`;
-    btns = btn('portal', 'お支払い・解約', true) + btn('logout', 'ログアウト', true);
+    btns = btn('portal', 'お支払い・解約', true) + btn('pair', '別の端末でログイン', true) + btn('logout', 'ログアウト', true);
   } else if (account.signedIn) {
     status = `${account.name} でログイン中。有料版にすると、ステージ4から先の${lockedCount()}ステージも練習できます（${PRICE_LABEL}）。`;
-    btns = btn('buy', `有料版にする（${PRICE_LABEL}）`) + (account.customer ? btn('portal', 'お支払いの履歴', true) : '') + btn('logout', 'ログアウト', true);
+    btns = btn('buy', `有料版にする（${PRICE_LABEL}）`) + (account.customer ? btn('portal', 'お支払いの履歴', true) : '') + btn('pair', '別の端末でログイン', true) + btn('logout', 'ログアウト', true);
   } else {
     status = `各モードのステージ1〜3は無料です。有料版（${PRICE_LABEL}）にすると、ステージ4から先の${lockedCount()}ステージも練習できます。`;
     btns = btn('buy', `有料版にする（${PRICE_LABEL}）`) + btn('login', 'ログイン（申し込んだ方）', true);
@@ -240,10 +240,54 @@ const recoverAccount = async () => {
   }
 };
 
+const pairNote = (m) => (typeof toast === 'function' ? toast(m) : console.info(m));
+// ---- 別の端末でログイン：ログイン中の端末に8けたの番号を出し、新しい端末で入れる ----
+let pairTimer = 0;
+const showPairCode = async () => {
+  clearTimeout(pairTimer);
+  openAcct('pairOut');
+  $('pairShow').textContent = '…';
+  $('pairLeft').textContent = '';
+  const { code, expiresIn } = await apiPost('/api/pair/start');
+  $('pairShow').textContent = `${code.slice(0, 4)} ${code.slice(4)}`;
+  const end = Date.now() + expiresIn * 1000;
+  const tick = () => {
+    const left = Math.max(0, Math.round((end - Date.now()) / 1000));
+    if (!$('acctDlg').open) return;
+    if (!left) { $('pairShow').textContent = '時間切れ'; $('pairLeft').textContent = '「番号を出し直す」を押してください。'; return; }
+    $('pairLeft').textContent = `あと ${Math.floor(left / 60)}分${String(left % 60).padStart(2, '0')}秒有効・1回だけ使えます`;
+    pairTimer = setTimeout(tick, 1000);
+  };
+  tick();
+};
+
+const claimPair = async () => {
+  try {
+    await apiPost('/api/pair/claim', { code: $('pairCode').value });
+    // ログインできたら、次からは番号なしで入れるように、この端末にもパスキーを作る
+    afterSignIn = async () => {
+      if (!window.PublicKeyCredential) return;
+      try {
+        const opt = await apiPost('/api/passkey/options');
+        const cred = await navigator.credentials.create({ publicKey: creationOptions(opt) });
+        await apiPost('/api/passkey/verify', { response: registrationJSON(cred) });
+        pairNote('この端末にもパスキーを作りました');
+      } catch (e) {
+        pairNote(`ログインしました（パスキーは作れませんでした：${explainPasskey(e)}）`);
+      }
+    };
+    $('pairCode').value = '';
+    await signedInDone('');
+  } catch (e) {
+    acctError(e.message);
+  }
+};
+
 const onPlanButton = async (what) => {
   try {
     if (what === 'buy') await buyPlan();
     else if (what === 'login') { afterSignIn = null; openAcct('login'); }
+    else if (what === 'pair') await showPairCode();
     else if (what === 'portal') location.href = (await apiPost('/api/portal')).url;
     else if (what === 'logout') {
       await apiPost('/api/logout');
@@ -296,6 +340,9 @@ const initBilling = () => {
   $('acctRegisterBtn').addEventListener('click', registerPasskey);
   $('acctLoginBtn').addEventListener('click', loginPasskey);
   $('acctRecoverBtn').addEventListener('click', recoverAccount);
+  $('pairClaimBtn').addEventListener('click', claimPair);
+  $('pairCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') claimPair(); });
+  $('pairNewBtn').addEventListener('click', () => showPairCode().catch((e) => acctError(e.message)));
   $('acctDlg').addEventListener('click', (e) => {
     const b = e.target instanceof Element ? e.target.closest('[data-goto]') : null;
     if (b) openAcct(b.dataset.goto);
