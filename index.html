@@ -728,7 +728,7 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
   </div>
 </dialog>
 
-<script src="band-songs.js?v=3"></script>
+<script src="band-songs.js?v=4"></script>
 <script src="billing.js?v=1"></script>
 <script src="timing.js?v=2"></script>
 <script src="assess.js?v=1"></script>
@@ -1822,7 +1822,7 @@ const playDemo = () => {
 
 // ---- 曲の道（バンドの曲を、セクションごとに曲のテンポで弾く）----
 // 曲のデータは band-songs.js（genre-songs/build.mjs が書き出す）。小節は「弦:フレット/長さ」の並び
-const SONG_INFO = { lane: '曲の道', desc: 'バンドの曲を、セクションごとに曲のテンポで弾く', icon: '🎶', bg: '#e8eef6' };
+const SONG_INFO = { lane: 'オリジナル曲', desc: '元の曲の音源に合わせて練習。セクションごとに曲のテンポで弾く', icon: '🎶', bg: '#e8eef6' };
 const SONG_ALL = -1; // 通しで弾く
 const SONG_TOKEN = /\([^)]*\)\/\S+|\S+/g; // build.mjs と同じ区切り方（和音はひとかたまり）
 const SONG_BEATS = { w: 4, h: 2, q: 1, 8: 0.5, 16: 0.25 };
@@ -1877,7 +1877,9 @@ const songOf = (i) => {
     at += sec.bars.length;
     return out;
   });
-  const song = { ...src, barBeats: (num * 4) / den, sections };
+  // 6/8 などの複合拍子は、付点4分音符（1.5拍）ごとに数え・連桁でまとめる
+  const compound = den === 8 && num % 3 === 0;
+  const song = { ...src, num, den, barBeats: (num * 4) / den, clickBeats: src.click || (compound ? 1.5 : 1), beamBeats: compound ? 1.5 : 1, sections };
   songCache.set(i, song);
   return song;
 };
@@ -1894,6 +1896,8 @@ const songSecOf = (song) => {
   const v = k === SONG_ALL ? SONG_ALL : Math.max(0, Math.min(Number(k) || 0, song.sections.length - 1));
   return songSecLocked(v) ? 0 : v; // 有料版でなくなったときは、イントロに戻す
 };
+// テンポの見せ方：6/8 の曲は付点4分音符の速さで書く（中の計算は4分音符の速さのまま）
+const songTempoText = (song, bpm) => (song.clickBeats === 1.5 ? `${Math.round(bpm / 1.5)}（付点4分）` : `${Math.round(bpm)}`);
 const songSecName = (song, k) => (k === SONG_ALL ? '通し' : song.sections[k].name);
 
 const songLaneHtml = () => {
@@ -1945,7 +1949,7 @@ const renderSongInfo = () => {
   const k = songSecOf(song);
   const btn = (v, label) => `<button type="button" data-sec="${v}" aria-pressed="${k === v}">${songSecLocked(v) ? '🔒 ' : ''}${label}</button>`;
   $('songSecSeg').innerHTML = song.sections.map((sec, j) => btn(j, sec.name)).join('') + btn(SONG_ALL, '通し');
-  $('stageInfo').innerHTML = `<b>${song.title}</b>${song.genre}・テンポ ${song.tempo}・${song.time}拍子<br>${song.tech}<br>`
+  $('stageInfo').innerHTML = `<b>${song.title}</b>${song.genre}・テンポ ${songTempoText(song, song.tempo)}・${song.time}拍子<br>${song.tech}<br>`
     + `<span class="rule">クリア：合った音が85%以上（速さ100%・繰り返しなしの回だけ記録）</span>`;
 };
 const renderSongPractice = () => {
@@ -1954,7 +1958,7 @@ const renderSongPractice = () => {
   const opts = {
     speed: true, wait: false, loop: true, ranges: [], state: pr,
     note: (x) => (x.speed < 100 || x.loop
-      ? `テンポ ${Math.round((song.tempo * x.speed) / 100)}${x.loop ? '・「やめる」まで繰り返す' : ''}。練習モードの回は★の記録には入りません` : ''),
+      ? `テンポ ${songTempoText(song, (song.tempo * x.speed) / 100)}${x.loop ? '・「やめる」まで繰り返す' : ''}。練習モードの回は★の記録には入りません` : ''),
     onChange: (x) => { S().songPractice = { speed: x.speed, loop: x.loop }; saveStore(); },
   };
   if (!practiceUI) practiceUI = Timing.practiceBar($('practiceBar'), opts);
@@ -1996,14 +2000,14 @@ const songTickable = (ev) => {
   }
   return tn;
 };
-// 同じ拍の中の、続いた8分・16分の音を連桁でつなぐ（休符で切る）
-const songBeams = (bar, tickables) => {
+// 同じ拍の中の、続いた8分・16分の音を連桁でつなぐ（休符で切る）。g: 拍の長さ（6/8 は付点4分＝1.5）
+const songBeams = (bar, tickables, g = 1) => {
   const groups = [];
   let cur = [];
   let beatOf = -1;
   bar.forEach((ev, i) => {
-    const b = Math.floor(ev.beat + 1e-6);
-    const beamable = ev.kind !== 'rest' && ev.beats < 1 && Math.floor(ev.beat + ev.beats - 1e-6) === b;
+    const b = Math.floor(ev.beat / g + 1e-6);
+    const beamable = ev.kind !== 'rest' && ev.beats < 1 && Math.floor((ev.beat + ev.beats) / g - 1e-6) === b;
     if (!beamable || b !== beatOf) { if (cur.length > 1) groups.push(cur); cur = []; }
     if (beamable) { cur.push(tickables[i]); beatOf = b; } else beatOf = -1;
   });
@@ -2012,6 +2016,7 @@ const songBeams = (bar, tickables) => {
 };
 // status: 小節ごとの判定の色（なければ空）、cur: [小節, 何番目] の光らせる音
 const renderSongTab = (sec, status, cur) => {
+  const song = songOf(stageIdx);
   const el = $('score');
   el.innerHTML = '';
   const most = Math.max(...sec.bars.map((b) => b.length));
@@ -2032,13 +2037,14 @@ const renderSongTab = (sec, status, cur) => {
     const x = 8 + (col ? clefW + col * barW : 0);
     const stave = new VF.TabStave(x, -16, barW + (col ? 0 : clefW), { num_lines: STRINGS.length });
     if (!col) stave.addClef('tab');
+    if (!bi && song.time !== '4/4') stave.addTimeSignature(song.time); // 4/4 以外は拍子を書く
     stave.setMeasure(sec.barNo + bi + 1);
     stave.setContext(ctx).draw();
     const tickables = bar.map(songTickable);
-    const voice = new VF.Voice({ num_beats: 4, beat_value: 4 });
+    const voice = new VF.Voice({ num_beats: song.num, beat_value: song.den });
     voice.addTickables(tickables);
     tickables.forEach((n) => n.setStave(stave));
-    const beams = songBeams(bar, tickables);
+    const beams = songBeams(bar, tickables, song.beamBeats);
     new VF.Formatter().joinVoices([voice]).formatToStave([voice], stave);
     // 判定の色と、いまの音（音符より先に塗る）
     const top = stave.getYForLine(0) - 10;
@@ -2096,12 +2102,15 @@ const beginSongPass = () => {
   run.beatSec = beat;
   run.beatMs = beat * 1000;
   run.startCtx = actx.currentTime + 0.3;
-  run.clickN = 4 + run.beatsTotal;
+  // カウントは4つ。クリックは clickBeats ごと（4/4 は4分、6/8 は付点4分。6/8 のカウントは2小節）
+  const cb = run.song.clickBeats;
+  run.countBeats = 4 * cb;
+  run.clickN = 4 + Math.ceil(run.beatsTotal / cb - 1e-6);
   run.nextClick = 0;
   const off = perfOffset();
   run.countStart = off + run.startCtx * 1000;
-  run.times = run.events.map((ev) => off + (run.startCtx + (4 + ev.at) * beat) * 1000);
-  run.endTime = off + (run.startCtx + (4 + run.beatsTotal) * beat) * 1000;
+  run.times = run.events.map((ev) => off + (run.startCtx + (run.countBeats + ev.at) * beat) * 1000);
+  run.endTime = off + (run.startCtx + (run.countBeats + run.beatsTotal) * beat) * 1000;
   // 音のない出来事（× と休符）は判定しない
   run.judged = run.events.map((ev) => !ev.notes.length);
   run.hitAt = [];
@@ -2130,11 +2139,13 @@ const songTick = () => {
   if (!run || run.mode !== 'song' || run.passDone) return;
   const now = performance.now();
   // クリックは少し先の分だけ予約する（やめたときに鳴り残らない）
-  while (run.nextClick < run.clickN && run.startCtx + run.nextClick * run.beatSec < actx.currentTime + 0.2) {
-    click(run.startCtx + run.nextClick * run.beatSec, run.nextClick % run.song.barBeats === 0);
+  const cb = run.song.clickBeats;
+  while (run.nextClick < run.clickN && run.startCtx + run.nextClick * cb * run.beatSec < actx.currentTime + 0.2) {
+    const at = run.nextClick * cb;
+    click(run.startCtx + at * run.beatSec, Math.abs(at % run.song.barBeats) < 1e-6);
     run.nextClick++;
   }
-  const k = Math.floor((now - run.countStart) / run.beatMs);
+  const k = Math.floor((now - run.countStart) / (run.beatMs * cb));
   const countK = k >= 0 && k < 4 ? k : null;
   // 時間切れの音はミス
   let changed = countK !== run.countK;
@@ -2148,7 +2159,7 @@ const songTick = () => {
   let cur = -1;
   for (let i = 0; i < run.times.length && run.times[i] - 60 <= now; i++) cur = i;
   if (cur !== run.cur || changed) { run.cur = cur; showSongState(); }
-  const first = run.countStart + 4 * run.beatMs;
+  const first = run.countStart + run.countBeats * run.beatMs;
   setProg((now - first) / (run.endTime - first));
   if (now > run.endTime && run.judged.every(Boolean)) {
     run.passDone = true;
@@ -2203,7 +2214,7 @@ const finishSong = () => {
   const st = Timing.stats(r.offs);
   const name = songSecName(r.song, r.k);
   const line1 = `${name}　合った音 ${hits} / ${r.total}（${Math.round(rate * 100)}%・Perfect ${r.ok}・Good ${r.good}）`;
-  const line2 = `余分な音 ${r.extra}・テンポ ${Math.round((r.song.tempo * r.speed) / 100)}${st.n ? `・平均のずれ ${Timing.signed(st.mean)}（${Timing.tendency(st.mean)}）${st.sd !== null ? `・ばらつき ±${Math.round(st.sd)}ms` : ''}` : ''}`;
+  const line2 = `余分な音 ${r.extra}・テンポ ${songTempoText(r.song, (r.song.tempo * r.speed) / 100)}${st.n ? `・平均のずれ ${Timing.signed(st.mean)}（${Timing.tendency(st.mean)}）${st.sd !== null ? `・ばらつき ±${Math.round(st.sd)}ms` : ''}` : ''}`;
   if (r.practice) {
     const how = [r.speed < 100 ? `速さ ${r.speed}%` : '', r.loop ? '繰り返し' : ''].filter(Boolean).join('・');
     showResult(null, `${r.laps ? `${r.laps}回くり返して ` : ''}${line1}`, `${line2}。練習モード（${how}）の回は、★の記録には入りません`);
