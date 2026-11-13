@@ -12,7 +12,8 @@
 //     bar1: 0.876, spb: 0.5042,                 // 小節1の頭の秒・1拍の秒（区間の頭出しに使う）
 //     sections: [{ name: 'イントロ', from: 0, to: 8 }, …], // 小節（0から数える）[from, to)
 //   });
-//   mx.stop(); mx.destroy();
+//   mx.play(); mx.stop(); mx.destroy(); mx.position（曲の秒）
+// opt.onState(playing) を渡すと、再生・一時停止・停止のたびに呼ぶ
 // ==========================================================================
 const Mixer = (() => {
   const css = `
@@ -153,12 +154,13 @@ const Mixer = (() => {
       });
       startedAt = when - from;
       playing = true;
+      if (opt.onState) opt.onState(true);
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(tick);
       draw();
     };
-    const pause = () => { if (!playing) return; pausedAt = pos(); playing = false; killSources(); cancelAnimationFrame(raf); draw(); };
-    function stop() { playing = false; killSources(); cancelAnimationFrame(raf); pausedAt = range()[0]; draw(); }
+    const pause = () => { if (!playing) return; pausedAt = pos(); playing = false; killSources(); cancelAnimationFrame(raf); draw(); if (opt.onState) opt.onState(false); };
+    function stop() { const was = playing; playing = false; killSources(); cancelAnimationFrame(raf); pausedAt = range()[0]; draw(); if (was && opt.onState) opt.onState(false); }
     el.addEventListener('click', (e) => {
       const b = e.target instanceof Element ? e.target.closest('button') : null;
       if (!b || !el.contains(b)) return;
@@ -206,6 +208,11 @@ const Mixer = (() => {
       stop,
       pause,
       get playing() { return playing; },
+      // 曲の何秒を鳴らしているか（スピーカーから出るまでの遅れ outputLatency は含まない）・曲の長さ・出力の遅れ（秒）
+      get position() { return Math.min(pos(), dur); },
+      get duration() { return dur; },
+      get outLatency() { return ctx ? (ctx.outputLatency || 0) + (ctx.baseLatency || 0) : 0; },
+      play() { if (!playing) startAt(Math.max(range()[0], Math.min(pausedAt, range()[1] - 0.05))); },
       destroy() { stop(); if (master) master.disconnect(); el.innerHTML = ''; el.classList.remove('mx'); },
     };
   };
