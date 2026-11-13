@@ -269,3 +269,34 @@ button.pad.cym kbd { color: #3d3016 !important; }
 button.pad.foot { border-color: #5d5850 !important; background: radial-gradient(circle at 50% 38%, #26262b 0 48%, #151518 100%) !important; }
 button.pad.hit { box-shadow: 0 0 0 4px #121215, 0 0 0 7px var(--gold), 0 0 26px rgba(201, 169, 110, .55) !important; }
 .field input, #latencyInput { background: var(--panel2) !important; color: var(--ink) !important; border: 1px solid var(--line) !important; }
+
+/* ---- スマホでのはみ出し・ズーム・重なり（5本共通） ---- */
+/* iPhone は 16px 未満の入力欄にフォーカスすると画面を拡大するので、入力欄はすべて 16px に */
+input[type="text"], input[type="email"], input[type="number"], input[type="search"], input:not([type]), select, textarea { font-size: 16px; }
+/* アカウントの画面の入力欄：押しやすい高さに */
+#acctDlg input:not([type="checkbox"]):not([type="radio"]), #upsellDlg input { box-sizing: border-box; min-height: 44px; padding: 10px 12px; }
+/* 一時的に出る知らせ：画面の下の真ん中。画面の幅で折り返す（長い文が左右にはみ出さない） */
+.toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 60; padding: 10px 18px; font-size: .92rem;  white-space: normal !important; width: max-content; max-width: calc(100vw - 32px) !important; box-sizing: border-box; text-align: center; line-height: 1.5; border-radius: 16px !important; overflow-wrap: anywhere; }
+/* 下から出る画面：横にはみ出さず、長いメールアドレス・番号も折り返す */
+dialog.sheet-dlg { max-width: 100vw; box-sizing: border-box; overflow-x: hidden; }
+.dlg-in { overflow-wrap: anywhere; }
+.dlg-in .controls > button { max-width: 100%; white-space: normal; }
+.acct-code { overflow-wrap: anywhere; }
+@media (max-width: 520px) {
+  .dlg-head h2 { font-size: 1.08rem; letter-spacing: .03em; line-height: 1.4; }
+}
+/* 上のバー：アプリ名が「マイク オフ」などに重ならないよう、狭い画面では詰めて、入らなければ「…」に */
+.brand { overflow: hidden; }
+.brand > span { min-width: 0; overflow: hidden; }
+.brand b { display: block; overflow: hidden; text-overflow: ellipsis; }
+.topbar .mic-status, .topbar button.icon { flex: none; }
+@media (max-width: 520px) {
+  .topbar { gap: 8px; padding-left: 12px; padding-right: 12px; }
+  .brand { gap: 8px; }
+  .brand svg { width: 30px; height: 30px; }
+  .brand b { font-size: .95rem; letter-spacing: .02em; }
+  .brand small { letter-spacing: .15em; }
+  .topbar .mic-status { font-size: .7rem; padding: 4px 9px; letter-spacing: .02em; }
+}
+/* 知らせはダイアログより手前に出す（popover で最前面に置く。billing.js などの toast が popover を付ける） */
+.toast[popover] { inset: auto auto 90px 50%; margin: 0; border: 0; overflow: visible; }

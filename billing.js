@@ -248,7 +248,7 @@ const recoverAccount = async () => {
   }
 };
 
-const pairNote = (m) => (typeof toast === 'function' ? toast(m) : console.info(m));
+const pairNote = (m) => pairToast(m);
 // ---- 別の端末でログイン：ログイン中の端末に8けたの番号を出し、新しい端末で入れる ----
 let pairTimer = 0;
 const showPairCode = async () => {
@@ -269,7 +269,22 @@ const showPairCode = async () => {
   tick();
 };
 
-const pairToast = (m) => (typeof toast === 'function' ? toast(m) : alert(m));
+// 知らせ（画面の下に3秒。順番に1つずつ出し、ダイアログより手前に出すため popover で最前面に置く）
+let pairToastQueue = Promise.resolve();
+const pairToast = (text) => {
+  // アプリに toast（順番待ちあり）があれば、それと同じ列に並べる（2つ重ならないように）
+  if (typeof toast === 'function') { toast(text); return; }
+  pairToastQueue = pairToastQueue.then(() => new Promise((done) => {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.setAttribute('role', 'status');
+    el.textContent = text;
+    if (typeof el.showPopover === 'function') el.popover = 'manual';
+    document.body.appendChild(el);
+    if (el.popover) el.showPopover();
+    setTimeout(() => { el.remove(); done(); }, 3200);
+  }));
+};
 // 番号でログインしたら「この端末にパスキーを作る」画面を出す（iPhone の Safari は、ボタンを押した直後でないとパスキーを作れないので、押してもらう）
 let pairOpt = null;
 let pairPending = false;
