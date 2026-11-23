@@ -5,8 +5,8 @@
 // 元は genre-songs/mixer.js
 // 使い方：
 //   const mx = Mixer.create(el, {
-//     id: 'hr-leave-the-bill',                 // 音量の設定を覚えるキー
-//     base: 'audio/songs/hr-leave-the-bill/',   // トラックの置き場所
+//     id: 'my-song',                 // 音量の設定を覚えるキー
+//     base: 'audio/songs/my-song/',   // トラックの置き場所
 //     tracks: [{ id: 'vocal', label: '歌' }, …], // base + id + '.mp3'
 //     mine: 'guitar',                           // このアプリの楽器（「自分のパートを消す」で消す）
 //     bar1: 0.876, spb: 0.5042,                 // 小節1の頭の秒・1拍の秒（区間の頭出しに使う）
