@@ -449,6 +449,49 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
 }
 .lap-line { min-height: 1.3em; text-align: center; font-size: .86rem; color: var(--gold); letter-spacing: .04em; }
 #practiceBar { margin-top: 2px; }
+/* 練習の画面：楽譜と指板を、スクロールせずに一画面に収める（#5）。
+   高さが足りないときは、見出し・説明などの飾りを先に縮め、楽譜と指板は読める・押せる大きさを保つ */
+.intro { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 12px; padding: 12px 16px; }
+.intro > .stage-info { flex-basis: 100%; }
+.intro > .kb-note { flex-basis: 100%; margin: 0; }
+.intro .rule { margin-top: 4px; }
+body[data-mode="song"] .sheet { max-height: clamp(150px, calc(100vh - 430px), 360px); max-height: clamp(150px, calc(100dvh - 430px), 360px); overflow-y: auto; align-content: start; }
+@media (max-height: 800px) {
+  .play { padding-top: 4px; padding-bottom: 16px; }
+  .playbar { padding: 0 0 6px; }
+  .stage { gap: 8px; }
+  .intro { padding: 8px 12px; gap: 6px 10px; border-radius: 16px; }
+  .intro > .kb-note { display: none; }
+  .stage-info { font-size: .8rem; line-height: 1.35; }
+  .stage-info b { font-size: .95rem; margin-bottom: 0; }
+  .intro .rule { margin-top: 2px; }
+  .intro button.gold.big { padding: 8px 22px; font-size: 1rem; }
+  .prompt { min-height: 0; font-size: .95rem; }
+  .prompt .big { font-size: 1.7rem; }
+  .prompt:empty { display: none; }
+  .sheet { padding: 6px 10px; border-radius: 16px; }
+  body[data-mode="staff"] #score svg { width: auto !important; height: 132px !important; }
+  body[data-mode="tab"] #score svg { width: auto !important; height: 112px !important; }
+  .fb-box { padding: 6px 6px 2px; border-radius: 14px; }
+  #fretboard svg { max-height: 170px; }
+}
+@media (max-height: 520px) {
+  .playbar .ttl b { font-size: .9rem; }
+  .play-score b { font-size: 1.1rem; }
+  .playbar button.icon { width: 34px; height: 34px; }
+  .stage { gap: 6px; }
+  /* 説明の文は隠し、題名とクリアの条件だけを1行に */
+  .intro { gap: 4px 8px; padding: 6px 10px; max-width: none; }
+  .stage-info { font-size: 0; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px 10px; }
+  .stage-info br { display: none; }
+  .stage-info b { font-size: .9rem; }
+  .stage-info .rule { font-size: .75rem; margin: 0; }
+  .intro button.gold.big { padding: 6px 18px; }
+  body[data-mode="staff"] #score svg { height: 96px !important; }
+  body[data-mode="tab"] #score svg { height: 84px !important; }
+  #fretboard svg { max-height: 140px; }
+  body[data-mode="song"] .sheet { max-height: 140px; }
+}
 </style>
 <link rel="stylesheet" href="studio.css?v=5">
 </head>
@@ -2116,6 +2159,13 @@ const renderSongTab = (sec, status, cur) => {
   el.querySelectorAll('svg').forEach((svg) => {
     svg.setAttribute('viewBox', `0 0 ${W} ${SONG_ROW_H}`); svg.removeAttribute('width'); svg.removeAttribute('height'); svg.style.width = `${W}px`;
   });
+  // 楽譜の枠は高さを抑えて中でスクロールするので、いまの音（無ければ最初）の段を枠の中に見せる（#5）
+  const row = el.children[cur ? Math.floor(cur[0] / perRow) : 0];
+  const box = el.closest('.sheet');
+  if (row && box && box.scrollHeight > box.clientHeight) {
+    const top = row.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+    if (top < box.scrollTop || top + row.clientHeight > box.scrollTop + box.clientHeight) box.scrollTop = top - 4;
+  }
 };
 
 // 弾く：選んだところの音を1列に並べ、4拍のカウントのあと本当のリズムの時刻で判定する
