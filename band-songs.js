@@ -122,10 +122,36 @@ const BAND_SONGS = [
         }
       ],
       "alt": {
-        "id": "original",
         "label": "原曲（Suno）",
         "bar1": 0.095,
-        "spb": 0.46519
+        "spb": 0.46519,
+        "tracks": [
+          {
+            "id": "original-vocals",
+            "label": "歌",
+            "part": "vocal"
+          },
+          {
+            "id": "original-keys",
+            "label": "鍵盤・その他",
+            "part": "keys"
+          },
+          {
+            "id": "original-guitar",
+            "label": "ギター",
+            "part": "guitar"
+          },
+          {
+            "id": "original-bass",
+            "label": "ベース",
+            "part": "bass"
+          },
+          {
+            "id": "original-drums",
+            "label": "ドラム",
+            "part": "drums"
+          }
+        ]
       }
     }
   }
