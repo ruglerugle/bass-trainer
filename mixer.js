@@ -11,8 +11,9 @@
 //     mine: 'guitar',                           // このアプリの楽器（「自分のパートを消す」で消す）
 //     bar1: 0.876, spb: 0.5042,                 // 小節1の頭の秒・1拍の秒（区間の頭出しに使う）
 //     sections: [{ name: 'イントロ', from: 0, to: 8 }, …], // 小節（0から数える）[from, to)
+//     alt: { id: 'original', label: '原曲（Suno）', bar1: 0.095, spb: 0.4652 }, // あれば：元の録音（1本の音源。base + id + '.mp3'）に切り替えられる
 //   });
-//   mx.play(); mx.stop(); mx.destroy(); mx.position（曲の秒）
+//   mx.play(); mx.stop(); mx.destroy(); mx.position（曲の秒。元の録音を鳴らしているときも、パート別の音源の秒に直して返す）
 // opt.onState(playing) を渡すと、再生・一時停止・停止のたびに呼ぶ
 // ==========================================================================
 const Mixer = (() => {
@@ -34,6 +35,10 @@ const Mixer = (() => {
 .mx-row.mine .mx-name { color: var(--gold, #c9a96e); }
 .mx-presets { display: flex; flex-wrap: wrap; gap: 6px; }
 .mx-presets button { padding: 4px 12px; font-size: .8rem; border-radius: 999px; }
+.mx-src { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: .82rem; color: var(--muted, #8f8b85); }
+.mx-src button { padding: 4px 11px; font-size: .8rem; border-radius: 999px; background: transparent; color: var(--muted, #8f8b85); box-shadow: 0 0 0 1px var(--line, #2b2b31) inset; }
+.mx-src button[aria-pressed="true"] { background: var(--gold-grad, #c9a96e); color: #17130b; box-shadow: none; }
+.mx[data-src="alt"] .mx-rows, .mx[data-src="alt"] .mx-presets { display: none; }
 .mx-note { font-size: .78rem; color: var(--muted, #8f8b85); margin: 0; }
 .mx[aria-busy="true"] .mx-rows, .mx[aria-busy="true"] .mx-top button { opacity: .5; pointer-events: none; }
 `;
@@ -48,7 +53,7 @@ const Mixer = (() => {
   let ctx = null;
   const audio = () => {
     ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
-    if (ctx.state === 'suspended') ctx.resume();
+    if (ctx.state !== 'running' && ctx.state !== 'closed') ctx.resume().catch(() => {});
     return ctx;
   };
   const cache = new Map(); // url → Promise<AudioBuffer>
@@ -74,8 +79,16 @@ const Mixer = (() => {
       solo: Object.fromEntries(opt.tracks.map((t) => [t.id, false])),
       sec: -1, // -1 = 曲全体
       loop: !!saved.loop,
+      src: opt.alt && saved.src === 'alt' ? 'alt' : 'parts', // parts = パート別の音源、alt = 元の録音
     };
-    const save = () => writeStore(opt.id, { vol: st.vol, mute: st.mute, loop: st.loop });
+    const save = () => writeStore(opt.id, { vol: st.vol, mute: st.mute, loop: st.loop, src: st.src });
+    const isAlt = () => st.src === 'alt';
+    // 元の録音はテンポと頭の位置がパート別と違うので、拍を通して秒を直す
+    const toParts = (sec) => (isAlt() ? opt.bar1 + ((sec - opt.alt.bar1) / opt.alt.spb) * opt.spb : sec);
+    const fromParts = (sec) => (isAlt() ? opt.alt.bar1 + ((sec - opt.bar1) / opt.spb) * opt.alt.spb : sec);
+    let altBuf = null;
+    let altGain = null;
+    let altDur = 0;
     let buffers = null;
     let sources = [];
     let gains = {};
@@ -85,12 +98,17 @@ const Mixer = (() => {
     let playing = false;
     let raf = 0;
     let dur = 0;
+    const curDur = () => (isAlt() ? altDur : dur);
     const range = () => {
-      if (st.sec < 0 || !opt.sections) return [0, dur];
+      if (st.sec < 0 || !opt.sections) return [0, curDur()];
       const s = opt.sections[st.sec];
-      const barSec = 4 * opt.spb;
-      return [Math.max(0, opt.bar1 + s.from * barSec - (s.from === 0 ? opt.bar1 : 0)), Math.min(dur, opt.bar1 + s.to * barSec)];
+      const { bar1, spb } = isAlt() ? opt.alt : opt;
+      const barSec = 4 * spb;
+      return [Math.max(0, bar1 + s.from * barSec - (s.from === 0 ? bar1 : 0)), Math.min(curDur(), bar1 + s.to * barSec)];
     };
+    const noteText = () => (isAlt()
+      ? `${opt.alt.label}：楽器に分ける前の、元の録音です。パートごとの音量は変えられません。`
+      : '元の曲の音を楽器ごとに分けたものです。自分のパートを小さくして、重ねて練習できます。');
     el.classList.add('mx');
     el.setAttribute('aria-busy', 'true');
     el.innerHTML = `<div class="mx-top">
@@ -99,6 +117,7 @@ const Mixer = (() => {
         <span class="mx-time">0:00 / 0:00</span>
         <input class="mx-seek" type="range" min="0" max="1000" value="0" aria-label="再生の位置">
       </div>
+      ${opt.alt ? `<div class="mx-src"><span>音源</span><button type="button" data-src="parts" aria-pressed="${!isAlt()}">練習用（パート別）</button><button type="button" data-src="alt" aria-pressed="${isAlt()}">${opt.alt.label}</button></div>` : ''}
       ${opt.sections ? `<div class="mx-secs"><span>区間</span><button type="button" data-sec="-1" aria-pressed="true">全部</button>${opt.sections.map((s, i) => `<button type="button" data-sec="${i}" aria-pressed="false">${s.name}</button>`).join('')}<label><input type="checkbox" data-mx="loop"${st.loop ? ' checked' : ''}>くり返す</label></div>` : ''}
       <div class="mx-presets"><button type="button" class="ghost" data-pre="all">全部の音</button>${opt.mine ? '<button type="button" class="ghost" data-pre="minus">自分のパートを消す</button><button type="button" class="ghost" data-pre="only">自分のパートだけ</button>' : ''}</div>
       <div class="mx-rows">${opt.tracks.map((t) => `<div class="mx-row${t.id === opt.mine ? ' mine' : ''}" data-tr="${t.id}"><span class="mx-name">${t.label}</span><input type="range" min="0" max="100" value="${st.vol[t.id]}" aria-label="${t.label}の音量"><button type="button" data-m="mute" aria-pressed="${st.mute[t.id]}" title="消す">M</button><button type="button" data-m="solo" aria-pressed="false" title="これだけ鳴らす">S</button></div>`).join('')}</div>
@@ -120,9 +139,10 @@ const Mixer = (() => {
     };
     const pos = () => (playing ? audio().currentTime - startedAt : pausedAt);
     const draw = () => {
-      const p = Math.min(pos(), dur);
-      $('.mx-time').textContent = `${fmt(p)} / ${fmt(dur)}`;
-      $('.mx-seek').value = dur ? Math.round((p / dur) * 1000) : 0;
+      const d = curDur();
+      const p = Math.min(pos(), d);
+      $('.mx-time').textContent = `${fmt(p)} / ${fmt(d)}`;
+      $('.mx-seek').value = d ? Math.round((p / d) * 1000) : 0;
       $('[data-mx=play]').textContent = playing ? '❚❚ 一時停止' : '▶ 再生';
       $('[data-mx=stop]').hidden = !playing && pausedAt <= range()[0] + 0.01;
     };
@@ -137,13 +157,20 @@ const Mixer = (() => {
       raf = requestAnimationFrame(tick);
     };
     const startAt = (from) => {
-      if (!buffers) return;
+      if (isAlt() ? !altBuf : !buffers) return;
       const c = audio();
       killSources();
       master = master || c.createGain();
       master.connect(c.destination);
       const when = c.currentTime + 0.05;
-      opt.tracks.forEach((t, i) => {
+      if (isAlt()) {
+        if (!altGain) { altGain = c.createGain(); altGain.connect(master); }
+        const s = c.createBufferSource();
+        s.buffer = altBuf;
+        s.connect(altGain);
+        s.start(when, from);
+        sources.push(s);
+      } else opt.tracks.forEach((t, i) => {
         if (!gains[t.id]) { gains[t.id] = c.createGain(); gains[t.id].connect(master); }
         gains[t.id].gain.value = gainOf(t.id) ** 1.6;
         const s = c.createBufferSource();
@@ -166,7 +193,21 @@ const Mixer = (() => {
       if (!b || !el.contains(b)) return;
       if (b.dataset.mx === 'play') { if (playing) pause(); else startAt(Math.max(range()[0], Math.min(pausedAt, range()[1] - 0.05))); }
       else if (b.dataset.mx === 'stop') stop();
-      else if (b.dataset.sec !== undefined) {
+      else if (b.dataset.src && opt.alt) {
+        if (b.dataset.src === st.src) return;
+        const at = toParts(pos()); // いまの位置を、切り替えたあとの音源でも同じ拍から鳴らす
+        const was = playing;
+        if (was) { playing = false; killSources(); cancelAnimationFrame(raf); }
+        st.src = b.dataset.src;
+        save();
+        el.dataset.src = st.src;
+        el.querySelectorAll('[data-src]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.src === st.src)));
+        $('.mx-note').textContent = noteText();
+        ready().then(() => {
+          const p = Math.max(0, Math.min(fromParts(at), curDur() - 0.05));
+          if (was) startAt(p); else { pausedAt = p; draw(); }
+        }).catch(failed);
+      } else if (b.dataset.sec !== undefined) {
         st.sec = Number(b.dataset.sec);
         el.querySelectorAll('[data-sec]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
         const was = playing;
@@ -185,35 +226,41 @@ const Mixer = (() => {
       const t = e.target;
       if (!(t instanceof HTMLInputElement)) return;
       if (t.classList.contains('mx-seek')) {
-        const p = (Number(t.value) / 1000) * dur;
+        const p = (Number(t.value) / 1000) * curDur();
         if (playing) startAt(p); else { pausedAt = p; draw(); }
       } else if (t.type === 'range' && t.closest('.mx-row')) {
         st.vol[t.closest('.mx-row').dataset.tr] = Number(t.value);
         applyGains(); save();
       } else if (t.dataset.mx === 'loop') { st.loop = t.checked; save(); }
     });
-    Promise.all(opt.tracks.map((t) => load(`${opt.base}${t.id}.mp3`)))
-      .then((bs) => {
-        buffers = bs;
-        dur = Math.max(...bs.map((b) => b.duration));
+    // パート別の音源は最初に、元の録音は選んだときに読む（パート別の長さは position の換算にも使うので、いつも読む）
+    const parts = Promise.all(opt.tracks.map((t) => load(`${opt.base}${t.id}.mp3`)))
+      .then((bs) => { buffers = bs; dur = Math.max(...bs.map((b) => b.duration)); });
+    const ready = () => (isAlt()
+      ? Promise.all([parts, load(`${opt.base}${opt.alt.id}.mp3`).then((b) => { altBuf = b; altDur = b.duration; })])
+      : parts);
+    function failed(err) {
+      console.error(err);
+      $('.mx-note').textContent = `音源を読み込めませんでした。通信の状態を確かめて、もう一度開いてください。（${err.message}）`;
+    }
+    el.dataset.src = st.src;
+    ready()
+      .then(() => {
         el.setAttribute('aria-busy', 'false');
-        $('.mx-note').textContent = '元の曲の音を楽器ごとに分けたものです。自分のパートを小さくして、重ねて練習できます。';
+        $('.mx-note').textContent = noteText();
         draw();
       })
-      .catch((err) => {
-        console.error(err);
-        $('.mx-note').textContent = `音源を読み込めませんでした。通信の状態を確かめて、もう一度開いてください。（${err.message}）`;
-      });
+      .catch(failed);
     return {
       stop,
       pause,
       get playing() { return playing; },
       // 曲の何秒を鳴らしているか（スピーカーから出るまでの遅れ outputLatency は含まない）・曲の長さ・出力の遅れ（秒）
-      get position() { return Math.min(pos(), dur); },
+      get position() { return Math.min(toParts(Math.min(pos(), curDur())), dur); },
       get duration() { return dur; },
       get outLatency() { return ctx ? (ctx.outputLatency || 0) + (ctx.baseLatency || 0) : 0; },
       play() { if (!playing) startAt(Math.max(range()[0], Math.min(pausedAt, range()[1] - 0.05))); },
-      destroy() { stop(); if (master) master.disconnect(); el.innerHTML = ''; el.classList.remove('mx'); },
+      destroy() { stop(); if (master) master.disconnect(); el.innerHTML = ''; el.classList.remove('mx'); delete el.dataset.src; },
     };
   };
   return { create };
