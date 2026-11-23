@@ -133,7 +133,7 @@ const BAND_SONGS = [
           },
           {
             "id": "original-keys",
-            "label": "鍵盤・その他",
+            "label": "鍵盤",
             "part": "keys"
           },
           {
@@ -150,6 +150,10 @@ const BAND_SONGS = [
             "id": "original-drums",
             "label": "ドラム",
             "part": "drums"
+          },
+          {
+            "id": "original-other",
+            "label": "その他"
           }
         ]
       }
