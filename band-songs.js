@@ -94,6 +94,7 @@ const BAND_SONGS = [
       ],
       "bar1": 0,
       "spb": 0.46875,
+      "ver": "20261124b",
       "sections": [
         {
           "name": "イントロ",
