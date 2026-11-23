@@ -11,6 +11,7 @@
 //     mine: 'guitar',                           // このアプリの楽器（「自分のパートを消す」で消す）
 //     bar1: 0.876, spb: 0.5042,                 // 小節1の頭の秒・1拍の秒（区間の頭出しに使う）
 //     sections: [{ name: 'イントロ', from: 0, to: 8 }, …], // 小節（0から数える）[from, to)
+//     ver: '20261124',                          // 音源を作り直したら変える（URL に ?v= を付けて読み直させる）
 //     alt: { label: '原曲（Suno）', bar1: 0.095, spb: 0.4652, tracks: [{ id: 'original-drums', label: 'ドラム', part: 'drums' }, …] }, // あれば：元の録音（AI でパートに分けたもの）に切り替えられる。最初はこちらを流す
 //   });
 //   mx.play(); mx.stop(); mx.destroy(); mx.position（曲の秒。元の録音を鳴らしているときも、パート別の音源の秒に直して返す）
@@ -201,7 +202,8 @@ const Mixer = (() => {
     const pause = () => { if (!playing) return; pausedAt = pos(); playing = false; killSources(); cancelAnimationFrame(raf); draw(); if (opt.onState) opt.onState(false); };
     function stop() { const was = playing; playing = false; killSources(); cancelAnimationFrame(raf); pausedAt = range()[0]; draw(); if (was && opt.onState) opt.onState(false); }
     // 音源の組を読む（練習用は position の換算に長さを使うので、いつも読む）
-    const loadSet = (src) => Promise.all(SETS[src].tracks.map((t) => load(`${opt.base}${t.id}.mp3`)))
+    // ver：音源を作り直したときに変える（ブラウザが前の音源を数時間覚えているため、URL を変えて読み直させる）
+    const loadSet = (src) => Promise.all(SETS[src].tracks.map((t) => load(`${opt.base}${t.id}.mp3${opt.ver ? `?v=${encodeURIComponent(opt.ver)}` : ''}`)))
       .then((bs) => { bufs[src] = bs; durs[src] = Math.max(...bs.map((b) => b.duration)); });
     const loading = {};
     const ready = () => {
