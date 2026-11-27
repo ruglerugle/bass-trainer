@@ -707,7 +707,7 @@ body[data-mode="song"] .sheet { max-height: clamp(150px, calc(100vh - 430px), 36
     <ul class="benefits" id="payBenefits"></ul>
     <div class="price-card"><div><small>月額</small><br><b>480<span>円</span></b></div><div style="text-align:right"><small>いつでも解約できます<br>解約しても、期間の終わりまで使えます</small></div></div>
     <div class="controls"><button type="button" class="gold big" id="payBuy" style="width:100%">有料版にする</button></div>
-    <p class="pay-login">申し込んだことがある方は <button type="button" class="link" id="payLogin">ログイン</button></p>
+    <p class="pay-login">申し込んだことがある方は <button type="button" class="link" id="payLogin">ログイン</button>／はじめての方は <button type="button" class="link" id="payRegister">無料で会員登録</button></p>
     <div class="trust">
       <span>🔒 お支払いは Stripe（世界中で使われている決済サービス）で行います。カード番号はこのサイトに届きません。</span>
       <span>ログインはパスキー（指紋・顔・PIN）。パスワードもメールアドレスも要りません。</span>
@@ -723,6 +723,7 @@ body[data-mode="song"] .sheet { max-height: clamp(150px, calc(100vh - 430px), 36
 #acctDlg .sec-devices li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding: 8px 0; border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent); }
 #acctDlg .sec-devices .link { margin-left: auto; }
 #acctDlg .sec-devices small { flex-basis: 100%; opacity: .7; }
+#acctDlg .acct-first { align-items: center; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent); }
 #acctDlg .sec-note { font-size: .88rem; opacity: .8; }
 </style>
 <dialog id="acctDlg" class="sheet-dlg" aria-labelledby="acctTitle">
@@ -735,14 +736,15 @@ body[data-mode="song"] .sheet { max-height: clamp(150px, calc(100vh - 430px), 36
       <input id="acctEmail" type="email" maxlength="254" placeholder="メールアドレス（任意・おすすめ）" autocomplete="email">
       <p class="sec-note">メールアドレスを登録しておくと、端末をなくしても、このメールでログインし直せます（あとからでも登録できます）。</p>
       <div class="controls"><button id="acctRegisterBtn" type="button">パスキーを作って続ける</button></div>
-      <p style="margin-top:14px">前に作った方は <button type="button" class="link" data-goto="login">パスキーでログイン</button></p>
+      <p style="margin-top:14px">すでにアカウントがある方は <button type="button" class="link" data-goto="login">ログイン</button></p>
     </div>
     <div data-view="login" hidden>
+      <div class="controls acct-first"><span>はじめての方は</span> <button type="button" data-goto="register">こちらから無料で登録</button></div>
       <p>この端末（または同じアカウントの端末）に保存したパスキーでログインします。</p>
       <div class="controls"><button id="acctLoginBtn" type="button">パスキーでログイン</button></div>
       <p style="margin-top:14px">ほかの端末でログイン中なら <button type="button" class="link" data-goto="pairIn">番号を入れて、この端末にパスキーを作る</button></p>
       <p style="margin-top:6px">端末をなくした方は <button type="button" class="link" data-goto="emailLogin">メールでログイン</button>（メールアドレスを登録した方）</p>
-      <p style="margin-top:14px">パスキーをなくした方は <button type="button" class="link" data-goto="recover">復旧コードを使う</button>／初めての方は <button type="button" class="link" data-goto="register">パスキーを作る</button></p>
+      <p style="margin-top:14px">パスキーをなくした方は <button type="button" class="link" data-goto="recover">復旧コードを使う</button></p>
     </div>
     <div data-view="pairIn" hidden>
       <p>ログイン中の端末で、設定の「ログインと端末」→「別の端末でログイン」を押すと出る<strong>8けたの番号</strong>を入れてください。番号でログインしたあと、この端末にパスキーを作ります。</p>
@@ -816,7 +818,7 @@ body[data-mode="song"] .sheet { max-height: clamp(150px, calc(100vh - 430px), 36
 </dialog>
 
 <script src="band-songs.js?v=12"></script>
-<script src="billing.js?v=6"></script>
+<script src="billing.js?v=7"></script>
 <script src="timing.js?v=2"></script>
 <script src="assess.js?v=1"></script>
 <script src="studio.js?v=1"></script>

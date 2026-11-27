@@ -130,7 +130,7 @@ const renderPlan = () => {
     btns = btn('buy', `有料版にする（${PRICE_LABEL}）`) + (account.customer ? btn('portal', 'お支払いの履歴', true) : '') + btn('security', 'ログインと端末', true) + btn('logout', 'ログアウト', true);
   } else {
     status = `各モードのステージ1〜3は無料です。有料版（${PRICE_LABEL}）にすると、ステージ4から先の${lockedCount()}ステージも練習できます。`;
-    btns = btn('buy', `有料版にする（${PRICE_LABEL}）`) + btn('login', 'ログイン（申し込んだ方）', true);
+    btns = btn('buy', `有料版にする（${PRICE_LABEL}）`) + btn('register', '無料で会員登録', true) + btn('login', 'ログイン（登録済みの方）', true);
   }
   $('planStatus').textContent = status + (account.signedIn && !account.hasEmail ? '（「ログインと端末」でメールアドレスを登録しておくと、端末をなくしても自分でログインし直せます）' : '');
   $('planBtns').innerHTML = btns;
@@ -413,6 +413,7 @@ const offerPasskeyAfterLink = () => {
 const onPlanButton = async (what) => {
   try {
     if (what === 'buy') await buyPlan();
+    else if (what === 'register') { afterSignIn = null; openAcct('register', '無料で会員登録できます。パスワードは要りません（指紋・顔・PINでログインするパスキーを使います）。'); }
     else if (what === 'login') { afterSignIn = null; openAcct('login'); }
     else if (what === 'pair') await showPairCode();
     else if (what === 'security') await openSecurity();
@@ -464,6 +465,10 @@ const initBilling = () => {
     $('payDlg').close();
     afterSignIn = null;
     openAcct('login');
+  });
+  $('payRegister').addEventListener('click', () => {
+    $('payDlg').close();
+    onPlanButton('register');
   });
   $('acctRegisterBtn').addEventListener('click', registerPasskey);
   $('acctLoginBtn').addEventListener('click', loginPasskey);
